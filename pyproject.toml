@@ -3,15 +3,26 @@ name = "german-learning-api"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "v1tush", email = "vitalikvitalik219@gmail.com" }
-]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "django>=6.1.2",
+    "django-ninja>=1.7.1",
+    "environs>=15.2.0",
+    "pillow>=13.0.0",
+    "psycopg[binary]>=3.3.6",
+]
 
-[project.scripts]
-german-learning-api = "german_learning_api:main"
+[dependency-groups]
+dev = [
+    "ruff>=0.17.2",
+]
 
-[build-system]
-requires = ["uv_build>=0.12.24,<0.13.0"]
-build-backend = "uv_build"
+[tool.ruff]
+line-length = 120
+
+target-version = "py314"
+
+[tool.ruff.format]
+quote-style = "double"
+
+skip-magic-trailing-comma = false
