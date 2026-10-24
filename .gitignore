@@ -1,0 +1,52 @@
+# --- Python & Environment ---
+.venv/
+.uv/
+__pycache__/
+*.py[cod]
+*$py.class
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Django Framework ---
+.env
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+static/
+
+# --- IDEs & Editors ---
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+
+# --- Operating Systems (macOS & Windows) ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# --- Testing & Code Quality ---
+.collection/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Logs & Process IDs ---
+*.log
+*.pid
+*.seed
+*.pid.lock
