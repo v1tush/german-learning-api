@@ -1,7 +1,7 @@
 from datetime import timedelta
 
-from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.db import models
 from django.templatetags.static import static
 from django.utils import timezone
 
@@ -14,9 +14,10 @@ def user_avatar_path(instance, filename):
 
 class User(AbstractBaseUser, PermissionsMixin):
     class Languages(models.TextChoices):
-        GERMAN = 'de', 'German'
-        ENGLISH = 'en', 'English'
-        RUSSIAN = 'ru', 'Russian'
+        GERMAN = "de", "German"
+        ENGLISH = "en", "English"
+        RUSSIAN = "ru", "Russian"
+
     username = models.CharField(max_length=30, unique=True)
     telegram_id = models.BigIntegerField(unique=True)
     email = models.EmailField(unique=True, blank=True, null=True)

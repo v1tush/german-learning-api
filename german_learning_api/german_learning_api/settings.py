@@ -14,7 +14,30 @@ DEBUG = env.bool("DJANGO_DEBUG", default=False)
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 
-AUTH_USER_MODEL = 'users.User'
+JWT_SECRET_KEY = env.str("JWT_SECRET_KEY")
+
+ALGORITHMS = env.list("ALGORITHMS")
+
+AVATAR_SIZE = 2 * 1024 * 1024  # 2 MB
+IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
+
+MAX_SIZE = (1920, 1920)
+MAX_AVATAR_SIZE = (400, 400)
+
+MAX_AVATAR_RESOLUTION = 2048 * 2048  # ~4.1M px: Perfect for square profile pictures
+MAX_IMAGE_RESOLUTION = (
+    3840 * 2160
+)  # ~8.3M px: Standard 4K UHD, allows high-res landscape photos
+
+IMAGE_ALLOWED_TYPES = ("image/jpeg", "image/jpg", "image/png", "image/webp")
+
+VIDEO_ALLOWED_TYPES = ("video/mp4", "video/webm", "video/quicktime")
+
+ALLOWED_EXTENSIONS_HUMAN = ("jpeg", "jpg", "png", "webp", "mp4", "webm", "mov")
+
+
+AUTH_USER_MODEL = "users.User"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -23,9 +46,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'ninja',
+    "ninja",
     "translations.apps.TranslationsConfig",
     "users.apps.UsersConfig",
+    "django_cleanup.apps.CleanupConfig",
 ]
 
 MIDDLEWARE = [
