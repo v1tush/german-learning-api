@@ -1,6 +1,10 @@
 import openai
 from django.conf import settings
 from words.models import Word
+from pathlib import Path
+
+
+PROMPT_PATH = Path(__file__).parent / "word_translation_prompt"
 
 client = openai.OpenAI(
     api_key=settings.YANDEX_CLOUD_API_KEY,
@@ -10,9 +14,8 @@ client = openai.OpenAI(
     max_retries=1,
 )
 
-with open("word_translation_prompt.txt", "r", encoding="utf-8") as file:
+with PROMPT_PATH.open("r", encoding="utf-8") as file:
     BASE_PROMPT = file.read()
-
 
 def word_to_dict(word: Word) -> dict:
     return {
