@@ -1,16 +1,15 @@
-from PIL import Image
 import io
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from PIL import Image
 
 from core.exceptions import (
-    WrongImageTypeError,
-    WrongFileSizeError,
     TooManyPixelsError,
-    WrongFileTypeError,
+    WrongFileSizeError,
+    WrongImageTypeError,
 )
-from core.utils import avatar_transform, post_image_transform
+from core.utils import avatar_transform
 
 
 def _process_and_compress_image(file, max_resolution, resize_func):
@@ -33,12 +32,9 @@ def validate_avatar(file):
     if file.content_type not in settings.IMAGE_ALLOWED_TYPES:
         raise WrongImageTypeError("Avatar should be jpeg, png or webp")
     if file.size > settings.AVATAR_SIZE:
-        raise WrongFileSizeError(
-            f"Avatar should not be more than {settings.AVATAR_SIZE / 1024 / 1024:.0f} MB"
-        )
-    return _process_and_compress_image(
-        file, settings.MAX_AVATAR_RESOLUTION, avatar_transform
-    )
+        raise WrongFileSizeError(f"Avatar should not be more than {settings.AVATAR_SIZE / 1024 / 1024:.0f} MB")
+    return _process_and_compress_image(file, settings.MAX_AVATAR_RESOLUTION, avatar_transform)
+
 
 #
 # def validate_attachment(file):

@@ -1,11 +1,11 @@
-from ninja import Router
-from ninja.errors import HttpError
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from ninja import Router
+from ninja.errors import HttpError
 
 from authentication.auth import CookieRefreshAuth
 from authentication.models import RefreshToken
@@ -36,11 +36,7 @@ def logout(request, response: HttpResponse):
 
     try:
         with transaction.atomic():
-            token = (
-                RefreshToken.objects.select_related("user")
-                .select_for_update()
-                .get(token=data.get("jti"))
-            )
+            token = RefreshToken.objects.select_related("user").select_for_update().get(token=data.get("jti"))
 
             token.revoked = True
             token.save()
@@ -60,17 +56,11 @@ def refresh(request, response: HttpResponse):
     try:
         error_to_raise = None
         with transaction.atomic():
-            token = (
-                RefreshToken.objects.select_related("user")
-                .select_for_update()
-                .get(token=data.get("jti"))
-            )
+            token = RefreshToken.objects.select_related("user").select_for_update().get(token=data.get("jti"))
 
             if not token.is_active:
                 if token.used:
-                    RefreshToken.objects.filter(user=data.get("sub")).update(
-                        revoked=True, updated_at=timezone.now()
-                    )
+                    RefreshToken.objects.filter(user=data.get("sub")).update(revoked=True, updated_at=timezone.now())
 
                     error_to_raise = "token_has_already_been_used"
                 else:

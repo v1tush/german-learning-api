@@ -12,6 +12,4 @@ class Command(BaseCommand):
 
         deleted_count, _ = tokens.delete()
 
-        self.stdout.write(
-            self.style.SUCCESS(f"Everything is ok! Deleted {deleted_count} tokens.")
-        )
+        self.stdout.write(self.style.SUCCESS(f"Everything is ok! Deleted {deleted_count} tokens."))

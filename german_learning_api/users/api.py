@@ -1,6 +1,7 @@
+from authentication.auth import BotAuth, GlobalAuth
 from ninja import Router
 
-users_router = Router()
+users_router = Router(auth=[GlobalAuth(), BotAuth()])
 me_router = Router()
 
 users_router.add_router("/me/", me_router)

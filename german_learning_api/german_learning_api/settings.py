@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from environs import Env
@@ -18,6 +17,14 @@ JWT_SECRET_KEY = env.str("JWT_SECRET_KEY")
 
 ALGORITHMS = env.list("ALGORITHMS")
 
+TG_BOT_AUTH_KEY = env.str("TG_BOT_AUTH_KEY")
+
+YANDEX_CLOUD_BASE_URL = "https://ai.api.cloud.yandex.net/v1"
+
+YANDEX_CLOUD_FOLDER = env.str("YANDEX_CLOUD_FOLDER")
+YANDEX_CLOUD_API_KEY = env.str("YANDEX_CLOUD_API_KEY")
+YANDEX_CLOUD_MODEL = env.str("YANDEX_CLOUD_MODEL")
+
 AVATAR_SIZE = 2 * 1024 * 1024  # 2 MB
 IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
@@ -26,9 +33,7 @@ MAX_SIZE = (1920, 1920)
 MAX_AVATAR_SIZE = (400, 400)
 
 MAX_AVATAR_RESOLUTION = 2048 * 2048  # ~4.1M px: Perfect for square profile pictures
-MAX_IMAGE_RESOLUTION = (
-    3840 * 2160
-)  # ~8.3M px: Standard 4K UHD, allows high-res landscape photos
+MAX_IMAGE_RESOLUTION = 3840 * 2160  # ~8.3M px: Standard 4K UHD, allows high-res landscape photos
 
 IMAGE_ALLOWED_TYPES = ("image/jpeg", "image/jpg", "image/png", "image/webp")
 
@@ -49,6 +54,8 @@ INSTALLED_APPS = [
     "ninja",
     "translations.apps.TranslationsConfig",
     "users.apps.UsersConfig",
+    "authentication.apps.AuthConfig",
+    "words.apps.WordsConfig",
     "django_cleanup.apps.CleanupConfig",
 ]
 
@@ -84,11 +91,11 @@ WSGI_APPLICATION = "german_learning_api.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME", "german_db"),
-        "USER": os.environ.get("DB_USER", "postgres"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", "postgres"),
-        "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("DB_PORT", "5432"),
+        "NAME": env.str("DB_NAME", default="german_db"),
+        "USER": env.str("DB_USER", default="postgres"),
+        "PASSWORD": env.str("DB_PASSWORD", default="postgres"),
+        "HOST": env.str("DB_HOST", default="127.0.0.1"),
+        "PORT": env.str("DB_PORT", default="5432"),
     }
 }
 
