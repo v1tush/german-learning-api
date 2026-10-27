@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "users.apps.UsersConfig",
     "authentication.apps.AuthConfig",
     "words.apps.WordsConfig",
+    "tags.apps.TagsConfig",
     "django_cleanup.apps.CleanupConfig",
 ]
 
