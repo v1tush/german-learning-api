@@ -7,7 +7,6 @@ from core.models import TimeStampedModel
 User = get_user_model()
 
 
-# Create your models here.
 class UserTag(TimeStampedModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tags", db_index=False)
     name = models.CharField(max_length=50)

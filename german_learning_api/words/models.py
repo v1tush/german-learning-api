@@ -1,8 +1,14 @@
+from django.contrib.auth import get_user_model
+
 from core.models import TimeStampedModel
 from django.db import models
 
+from tags.models import UserTag
+from translations.choices import WordStatusChoices
+from translations.models import BaseTranslation
 from words.choices import InflectionTypeChoices, LanguageChoices, PartOfSpeechChoices
 
+User = get_user_model()
 
 class Word(TimeStampedModel):
     word = models.CharField(max_length=255, db_index=True)
@@ -38,3 +44,25 @@ class WordInflection(TimeStampedModel):
         constraints = [models.UniqueConstraint(fields=["word", "type"], name="unique_word_inflection_type")]
         verbose_name = "Word Inflection"
         verbose_name_plural = "Word Inflections"
+
+class UserWord(TimeStampedModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="vocabulary", db_index=False)
+    word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name="user_links", db_index=False)
+    custom_translation = models.CharField(max_length=500, blank=True, null=True)
+    user_hint = models.TextField(blank=True, null=True)
+    tags = models.ManyToManyField(UserTag, blank=True, related_name="user_words")
+    status = models.CharField(max_length=20, choices=WordStatusChoices, default=WordStatusChoices.LEARNING)
+    last_sent_at = models.DateTimeField(blank=True, null=True)
+    selected_translation = models.ForeignKey(
+        BaseTranslation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="user_selections",
+    )
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "word"], name="unique_user_word")]
+        verbose_name = "User Word"
+        verbose_name_plural = "User Words"
+
