@@ -1,3 +1,5 @@
+import json
+
 import openai
 from django.conf import settings
 from words.models import Word
@@ -26,40 +28,11 @@ def word_to_dict(word: Word) -> dict:
 
 
 def call_api(word_data):
+    string_input = json.dumps(word_data, ensure_ascii=False)
     return client.responses.create(
         model=f"gpt://{settings.YANDEX_CLOUD_FOLDER}/{settings.YANDEX_CLOUD_MODEL}",
         instructions=BASE_PROMPT,
-        input=word_data,
+        input=string_input,
         temperature=0.2,
         max_output_tokens=500,
-        text={  # type: ignore
-            "format": {
-                "type": "json_schema",
-                "name": "word_translation",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "word": {"type": "string"},
-                        "part_of_speech": {"type": "string", "enum": ["noun", "verb", "adj", "adv"]},
-                        "status": {"type": "string", "enum": ["success", "not_found", "invalid_input"]},
-                        "translations": {
-                            "type": "array",
-                            "maxItems": 5,
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "value": {"type": "string", "minLength": 1},
-                                    "is_main": {"type": "boolean"},
-                                },
-                                "required": ["value", "is_main"],
-                                "additionalProperties": False,
-                            },
-                        },
-                    },
-                    "required": ["word", "part_of_speech", "status", "translations"],
-                    "additionalProperties": False,
-                },
-            }
-        },
     )

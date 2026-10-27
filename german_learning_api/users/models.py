@@ -15,7 +15,7 @@ def user_avatar_path(instance, filename):
 
 class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=30, unique=True)
-    telegram_id = models.BigIntegerField(unique=True)
+    telegram_id = models.BigIntegerField(unique=True, blank=True, null=True)
     email = models.EmailField(unique=True, blank=True, null=True)
     date_joined = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)

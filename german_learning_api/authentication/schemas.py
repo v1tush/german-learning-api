@@ -1,8 +1,9 @@
 from ninja import Schema
+from pydantic import Field
 
 
 class UserIn(Schema):
-    username: str
+    username: str = Field(..., max_length=30)
     password: str
 
 

@@ -1,11 +1,12 @@
 from django.db import transaction
 from ninja import Router
 
+from authentication.auth import GlobalAuth, BotAuth
 from translations.models import BaseTranslation
 from translations.schemas import TranslationResponse, TranslationsListResponse
 from translations.services import get_translation, get_word_translations, serialize_translations
 
-translations_router = Router()
+translations_router = Router(auth=[GlobalAuth(), BotAuth()])
 
 
 @translations_router.get(
@@ -30,7 +31,7 @@ def get_translations(request, word_id: int):
     response=TranslationResponse,
 )
 def get_translation_suggestions(request, word_id: int):
-    target_language = request.user.current_learning_language
+    target_language = request.auth.current_learning_language
     word, translations = get_word_translations(word_id, target_language)
 
     if translations.exists():

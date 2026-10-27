@@ -33,6 +33,7 @@ You will receive:
 11. Do not return duplicate translations.
 12. If the input is ambiguous and the intended meaning cannot be identified reliably from the available context, do not speculate. Use "not_found" if no reliable translation can be provided.
 13. If the word or phrase is unfamiliar, potentially misspelled, or not confidently identifiable, do not invent a likely meaning. Use "not_found" when no reliable translation can be established.
+14. If the source language and target language are the same, return "invalid_input". Do not translate a word into the same language.
 
 ## Status rules
 Use exactly one of these statuses:
