@@ -9,13 +9,13 @@ class UserMeOut(ModelSchema):
         model = User
         fields = [
             "id",
-            'username',
-            'telegram_id',
-            'email',
+            "username",
+            "telegram_id",
+            "email",
             "date_joined",
             "is_active",
             "is_staff",
             "current_using_language",
             "current_learning_language",
-            "avatar"
+            "avatar",
         ]

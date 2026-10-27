@@ -1,7 +1,7 @@
+from authentication.auth import BotAuth, GlobalAuth
 from django.db import transaction
 from ninja import Router
 
-from authentication.auth import GlobalAuth, BotAuth
 from translations.models import BaseTranslation
 from translations.schemas import TranslationResponse, TranslationsListResponse
 from translations.services import get_translation, get_word_translations, serialize_translations
@@ -14,9 +14,10 @@ translations_router = Router(auth=[GlobalAuth(), BotAuth()])
     response=TranslationsListResponse,
 )
 def get_translations(request, word_id: int):
+    target_language = request.auth.current_learning_language
     word, translations = get_word_translations(
         word_id,
-        request.user.current_learning_language,
+        target_language,
     )
 
     return {

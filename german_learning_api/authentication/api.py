@@ -90,7 +90,7 @@ def register(request, response: HttpResponse, data: UserIn):
             user = User(username=data.username)
             user.set_password(data.password)
             user.save()
-        except IntegrityError as e:
+        except IntegrityError:
             raise HttpError(409, "user_is_already_exist")
 
         return set_auth_cookies(user, response)
