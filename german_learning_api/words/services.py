@@ -1,6 +1,8 @@
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
-from translations.models import BaseTranslation, UserTag, UserWord
+from translations.models import BaseTranslation
+from words.models import UserWord
+from tags.models import UserTag
 
 
 def _get_user_word(user, user_word_id: int) -> UserWord:

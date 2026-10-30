@@ -1,9 +1,8 @@
 from ninja import ModelSchema
 from pydantic import Field
 from translations.choices import WordStatusChoices
-from translations.models import UserWord
 
-from words.models import Word
+from words.models import UserWord, Word
 
 
 class WordIn(ModelSchema):
@@ -46,7 +45,6 @@ class UserWordOut(ModelSchema):
             "user_hint",
             "tags",
             "status",
-            "last_sent_at",
             "selected_translation",
             "created_at",
             "updated_at",

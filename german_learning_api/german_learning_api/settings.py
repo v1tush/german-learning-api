@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "authentication.apps.AuthConfig",
     "words.apps.WordsConfig",
     "tags.apps.TagsConfig",
+    "schedules.apps.SchedulesConfig",
     "django_cleanup.apps.CleanupConfig",
 ]
 

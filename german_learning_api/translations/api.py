@@ -5,6 +5,7 @@ from ninja import Router
 from translations.models import BaseTranslation
 from translations.schemas import TranslationResponse, TranslationsListResponse
 from translations.services import get_translation, get_word_translations, serialize_translations
+from words.schemas import UserWordOut
 
 translations_router = Router(auth=[GlobalAuth(), BotAuth()])
 
@@ -62,3 +63,7 @@ def get_translation_suggestions(request, word_id: int):
         )
 
     return result
+
+@translations_router.get('/words/user-random', response=UserWordOut)
+def get_user_random_word(request):
+    ...

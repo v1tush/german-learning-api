@@ -3,7 +3,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
-from translations.models import UserWord
+from words.models import UserWord
 
 from words.models import Word
 from words.schemas import UserWordIn, UserWordOut, UserWordUpdate, WordIn, WordOut

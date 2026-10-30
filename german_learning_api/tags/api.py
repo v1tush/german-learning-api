@@ -207,3 +207,4 @@ def remove_words_from_tag(
         "removed": len(existing_ids),
         "not_in_tag": len(user_word_ids - existing_ids),
     }
+

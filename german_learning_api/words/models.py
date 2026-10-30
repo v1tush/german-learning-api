@@ -1,11 +1,10 @@
-from django.contrib.auth import get_user_model
-
 from core.models import TimeStampedModel
+from django.contrib.auth import get_user_model
 from django.db import models
-
 from tags.models import UserTag
 from translations.choices import WordStatusChoices
 from translations.models import BaseTranslation
+
 from words.choices import InflectionTypeChoices, LanguageChoices, PartOfSpeechChoices
 
 User = get_user_model()
@@ -52,7 +51,6 @@ class UserWord(TimeStampedModel):
     user_hint = models.TextField(blank=True, null=True)
     tags = models.ManyToManyField(UserTag, blank=True, related_name="user_words")
     status = models.CharField(max_length=20, choices=WordStatusChoices, default=WordStatusChoices.LEARNING)
-    last_sent_at = models.DateTimeField(blank=True, null=True)
     selected_translation = models.ForeignKey(
         BaseTranslation,
         on_delete=models.SET_NULL,
