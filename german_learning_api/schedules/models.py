@@ -38,7 +38,11 @@ class StudySchedule(TimeStampedModel):
     timezone = models.CharField(max_length=63, default="UTC", validators=[validate_timezone])
     interval_minutes = models.PositiveIntegerField(null=True, blank=True)
     next_run_at = models.DateTimeField(null=True, blank=True)
-    tags = models.ManyToManyField("tags.UserTag", related_name="study_schedules")
+    tags = models.ManyToManyField(
+        "tags.UserTag",
+        blank=True,
+        related_name="study_schedules",
+    )
 
     class Meta:
         constraints = [
@@ -151,10 +155,6 @@ class ScheduleRunItem(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["run", "user_word"],
                 name="unique_schedule_run_user_word",
-            ),
-            models.UniqueConstraint(
-                fields=["schedule", "local_date", "user_word"],
-                name="unique_schedule_daily_user_word",
             ),
         ]
         ordering = ["position"]
