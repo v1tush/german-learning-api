@@ -1,5 +1,8 @@
+import logging
+
 from authentication.auth import BotAuth, GlobalAuth
 from ninja import Router
+from ninja.errors import HttpError
 
 from translations.schemas import TranslationResponse, TranslationsListResponse
 from translations.services import (
@@ -10,6 +13,7 @@ from translations.services import (
 )
 
 translations_router = Router(auth=[GlobalAuth(), BotAuth()])
+logger = logging.getLogger(__name__)
 
 
 @translations_router.get(
@@ -38,14 +42,6 @@ def get_translation_suggestions(request, word_id: int):
     target_language = request.auth.current_using_language
     word, translations = get_word_translations(word_id, target_language)
 
-    if translations.exists():
-        return {
-            "word": word.word,
-            "part_of_speech": word.part_of_speech,
-            "status": "success",
-            "translations": serialize_translations(translations),
-        }
-
     try:
         ensure_main_translation(word, target_language)
     except TranslationUnavailableError as error:
@@ -53,8 +49,11 @@ def get_translation_suggestions(request, word_id: int):
             "word": word.word,
             "part_of_speech": word.part_of_speech,
             "status": error.status,
-            "translations": [],
+            "translations": serialize_translations(translations),
         }
+    except Exception as error:
+        logger.exception("Could not generate translation for word %s", word_id)
+        raise HttpError(502, "translation_unavailable") from error
     return {
         "word": word.word,
         "part_of_speech": word.part_of_speech,

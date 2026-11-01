@@ -1,4 +1,5 @@
 import json
+import unicodedata
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -13,6 +14,10 @@ class TranslationUnavailableError(Exception):
     def __init__(self, status: str = "not_found"):
         self.status = status
         super().__init__(status)
+
+
+def _translation_key(value: str) -> str:
+    return unicodedata.normalize("NFC", " ".join(value.split())).casefold()
 
 
 def get_translation(word: Word, target_language: str, max_attempts: int = 2) -> TranslationResponse:
@@ -47,17 +52,20 @@ def ensure_main_translation(word: Word, target_language: str) -> BaseTranslation
     if result.status != "success":
         raise TranslationUnavailableError(result.status)
 
-    suggestions = []
-    seen = set()
+    suggestions = {}
     for suggestion in result.translations:
-        value = suggestion.value.strip()
-        if value and value not in seen:
-            suggestions.append((value, suggestion.is_main))
-            seen.add(value)
+        value = unicodedata.normalize("NFC", " ".join(suggestion.value.split()))
+        key = _translation_key(value)
+        if key:
+            current = suggestions.get(key)
+            if current is None:
+                suggestions[key] = (value, suggestion.is_main)
+            elif suggestion.is_main:
+                suggestions[key] = (current[0], True)
     if not suggestions:
         raise TranslationUnavailableError()
 
-    main_value = next((value for value, is_main in suggestions if is_main), suggestions[0][0])
+    main_key = next((key for key, (_, is_main) in suggestions.items() if is_main), next(iter(suggestions)))
     with transaction.atomic():
         Word.objects.select_for_update().get(pk=word.pk)
         translations = BaseTranslation.objects.filter(word=word, target_language=target_language)
@@ -68,21 +76,23 @@ def ensure_main_translation(word: Word, target_language: str) -> BaseTranslation
             existing_main.is_main = False
             existing_main.save(update_fields=["is_main", "updated_at"])
 
-        existing_by_value = {item.translation: item for item in translations}
-        for value, _ in suggestions:
-            item = existing_by_value.get(value)
+        existing_by_key = {}
+        for item in translations.order_by("id"):
+            existing_by_key.setdefault(_translation_key(item.translation), item)
+        for key, (value, _) in suggestions.items():
+            item = existing_by_key.get(key)
             if item is None:
                 item = BaseTranslation.objects.create(
                     word=word,
                     target_language=target_language,
                     translation=value,
-                    is_main=value == main_value,
+                    is_main=key == main_key,
                 )
-            elif value == main_value:
+            elif key == main_key:
                 item.is_main = True
                 item.save(update_fields=["is_main", "updated_at"])
-            existing_by_value[value] = item
-        return existing_by_value[main_value]
+            existing_by_key[key] = item
+        return existing_by_key[main_key]
 
 
 def get_word_translations(word_id: int, target_language: str):

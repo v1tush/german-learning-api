@@ -9,6 +9,7 @@ from words.choices import InflectionTypeChoices, LanguageChoices, PartOfSpeechCh
 
 User = get_user_model()
 
+
 class Word(TimeStampedModel):
     word = models.CharField(max_length=255, db_index=True)
     language = models.CharField(max_length=10, choices=LanguageChoices, default=LanguageChoices.GERMAN)
@@ -44,6 +45,7 @@ class WordInflection(TimeStampedModel):
         verbose_name = "Word Inflection"
         verbose_name_plural = "Word Inflections"
 
+
 class UserWord(TimeStampedModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="vocabulary", db_index=False)
     word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name="user_links", db_index=False)
@@ -61,6 +63,6 @@ class UserWord(TimeStampedModel):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "word"], name="unique_user_word")]
+        indexes = [models.Index(fields=["word"], name="userword_word_idx")]
         verbose_name = "User Word"
         verbose_name_plural = "User Words"
-

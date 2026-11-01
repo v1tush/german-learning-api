@@ -1,8 +1,28 @@
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
-from translations.models import BaseTranslation
-from words.models import UserWord
 from tags.models import UserTag
+from translations.models import BaseTranslation
+
+from words.choices import InflectionTypeChoices, LanguageChoices, PartOfSpeechChoices
+from words.models import UserWord, Word
+
+_INFLECTION_WORD_TYPES = {
+    InflectionTypeChoices.DE_PRATERITUM: (LanguageChoices.GERMAN, PartOfSpeechChoices.VERB),
+    InflectionTypeChoices.DE_PARTIZIP_2: (LanguageChoices.GERMAN, PartOfSpeechChoices.VERB),
+    InflectionTypeChoices.DE_PLURAL: (LanguageChoices.GERMAN, PartOfSpeechChoices.NOUN),
+    InflectionTypeChoices.EN_PAST_SIMPLE: (LanguageChoices.ENGLISH, PartOfSpeechChoices.VERB),
+    InflectionTypeChoices.EN_PAST_PARTICIPLE: (LanguageChoices.ENGLISH, PartOfSpeechChoices.VERB),
+    InflectionTypeChoices.EN_GERUND: (LanguageChoices.ENGLISH, PartOfSpeechChoices.VERB),
+}
+
+
+def _get_owned_word(user, word_id: int) -> Word:
+    return get_object_or_404(Word.objects.filter(user_links__user=user), pk=word_id)
+
+
+def _validate_inflection_type(word: Word, inflection_type: InflectionTypeChoices) -> None:
+    if (word.language, word.part_of_speech) != _INFLECTION_WORD_TYPES.get(inflection_type):
+        raise HttpError(422, "inflection_type_does_not_match_word")
 
 
 def _get_user_word(user, user_word_id: int) -> UserWord:
