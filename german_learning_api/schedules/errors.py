@@ -1,9 +1,6 @@
 class ScheduleError(Exception):
     status_code = 422
-
-    def __init__(self, code: str = "schedule_error"):
-        self.code = code
-        super().__init__(code)
+    code = "schedule_error"
 
 
 class ScheduleNotFoundError(ScheduleError):
@@ -11,9 +8,9 @@ class ScheduleNotFoundError(ScheduleError):
     code = "schedule_not_found"
 
 
-class InvalidTagIdsError(ScheduleError):
+class InvalidDatasetIdError(ScheduleError):
     status_code = 400
-    code = "invalid_tag_ids"
+    code = "invalid_dataset_id"
 
 
 class ScheduleHasRunsError(ScheduleError):
@@ -23,10 +20,6 @@ class ScheduleHasRunsError(ScheduleError):
 
 class InsufficientLearningWordsError(ScheduleError):
     code = "insufficient_learning_words"
-
-
-class UnsupportedDeliveryFormatError(ScheduleError):
-    code = "word_delivery_format_required"
 
 
 class InvalidScheduleConfigurationError(ScheduleError):

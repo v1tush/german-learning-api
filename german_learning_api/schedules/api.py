@@ -1,4 +1,4 @@
-from authentication.auth import GlobalAuth
+from authentication.auth import BotAuth, GlobalAuth
 from ninja import Router
 from ninja.errors import HttpError
 
@@ -21,11 +21,11 @@ from schedules.services import (
     update_study_schedule,
 )
 
-schedules_router = Router(auth=GlobalAuth())
+schedules_router = Router(auth=[GlobalAuth(), BotAuth()])
 
 
 def raise_service_error(error: ScheduleError) -> None:
-    raise HttpError(error.status_code, error.code) from error
+    raise HttpError(error.status_code, str(error) or error.code) from error
 
 
 @schedules_router.post(
@@ -47,7 +47,7 @@ def create_schedule(request, data: StudyScheduleCreateIn):
             timezone_name=data.timezone,
             interval_minutes=data.interval_minutes,
             fixed_times=data.fixed_times,
-            tag_ids=data.tags,
+            dataset_id=data.dataset_id,
         )
     except ScheduleError as error:
         raise_service_error(error)

@@ -50,3 +50,5 @@ htmlcov/
 *.pid
 *.seed
 *.pid.lock
+# Local state files created by Celery Beat (sometimes with a .db suffix)
+celerybeat-schedule*

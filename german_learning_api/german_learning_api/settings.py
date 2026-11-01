@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "authentication.apps.AuthConfig",
     "words.apps.WordsConfig",
     "tags.apps.TagsConfig",
+    "datasets.apps.DatasetsConfig",
     "schedules.apps.SchedulesConfig",
     "django_cleanup.apps.CleanupConfig",
 ]
@@ -126,6 +127,16 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 
 USE_TZ = True
+
+CELERY_BROKER_URL = env.str("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+CELERY_TIMEZONE = "UTC"
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_BEAT_SCHEDULE = {
+    "dispatch-due-study-schedules": {
+        "task": "schedules.tasks.dispatch_due_schedules",
+        "schedule": 60.0,
+    },
+}
 
 STATIC_URL = "static/"
 

@@ -1,16 +1,15 @@
-from authentication.auth import GlobalAuth
+from authentication.auth import BotAuth, GlobalAuth
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
-from words.models import UserWord
 
-from words.models import Word
+from words.models import UserWord, Word
 from words.schemas import UserWordIn, UserWordOut, UserWordUpdate, WordIn, WordOut
 from words.services import _get_user_tags, _get_user_word, _validate_selected_translation
 
 words_router = Router()
-user_words_router = Router(auth=GlobalAuth())
+user_words_router = Router(auth=[GlobalAuth(), BotAuth()])
 _MISSING = object()
 
 
@@ -20,7 +19,7 @@ def add_word(request, word: WordIn):
     return word_obj
 
 
-@words_router.get("/{word_id}", response=WordOut)
+@words_router.get("/{int:word_id}", response=WordOut)
 def get_word(request, word_id: int):
     return get_object_or_404(Word, pk=word_id)
 

@@ -15,7 +15,7 @@ translations_router = Router(auth=[GlobalAuth(), BotAuth()])
     response=TranslationsListResponse,
 )
 def get_translations(request, word_id: int):
-    target_language = request.auth.current_learning_language
+    target_language = request.auth.current_using_language
     word, translations = get_word_translations(
         word_id,
         target_language,
@@ -33,7 +33,7 @@ def get_translations(request, word_id: int):
     response=TranslationResponse,
 )
 def get_translation_suggestions(request, word_id: int):
-    target_language = request.auth.current_learning_language
+    target_language = request.auth.current_using_language
     word, translations = get_word_translations(word_id, target_language)
 
     if translations.exists():
@@ -63,7 +63,3 @@ def get_translation_suggestions(request, word_id: int):
         )
 
     return result
-
-@translations_router.get('/words/user-random', response=UserWordOut)
-def get_user_random_word(request):
-    ...

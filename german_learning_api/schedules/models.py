@@ -18,10 +18,6 @@ class StudySchedule(TimeStampedModel):
         INTERVAL = "interval", "Interval"
         FIXED_TIMES = "fixed_times", "Fixed times"
 
-    class DeliveryFormat(models.TextChoices):
-        WORDS = "words", "Words"
-        SESSION = "session", "Session"
-
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -29,17 +25,14 @@ class StudySchedule(TimeStampedModel):
     )
     is_enabled = models.BooleanField(default=False)
     mode = models.CharField(max_length=16, choices=Mode, default=Mode.INTERVAL)
-    delivery_format = models.CharField(
-        max_length=16,
-        choices=DeliveryFormat,
-        default=DeliveryFormat.WORDS,
-    )
     items_per_delivery = models.PositiveSmallIntegerField(default=1)
     timezone = models.CharField(max_length=63, default="UTC", validators=[validate_timezone])
     interval_minutes = models.PositiveIntegerField(null=True, blank=True)
     next_run_at = models.DateTimeField(null=True, blank=True)
-    tags = models.ManyToManyField(
-        "tags.UserTag",
+    dataset = models.ForeignKey(
+        "datasets.UserDataset",
+        on_delete=models.RESTRICT,
+        null=True,
         blank=True,
         related_name="study_schedules",
     )
@@ -109,7 +102,6 @@ class ScheduleRun(TimeStampedModel):
     scheduled_for = models.DateTimeField()
     sent_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=10, choices=Status, default=Status.PENDING)
-    delivery_format = models.CharField(max_length=16, choices=StudySchedule.DeliveryFormat)
 
     class Meta:
         constraints = [

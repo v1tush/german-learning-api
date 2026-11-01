@@ -65,6 +65,10 @@ class CookieRefreshAuth(APIKeyCookie):
 
 class BotAuth(APIKeyHeader):
     param_name = "X-API-Key"
+    openapi_description = (
+        "Telegram bot authorization requires both X-API-Key and X-Telegram-ID "
+        "headers. X-API-Key identifies the bot; X-Telegram-ID identifies the user."
+    )
 
     def authenticate(self, request: HttpRequest, key: str | None) -> User | None:
         if not key:

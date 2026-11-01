@@ -1,26 +1,28 @@
-from datetime import UTC, datetime, time, timedelta
+import logging
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from datasets.models import UserDataset
+from datasets.services import get_dataset_words
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
-from tags.models import UserTag
 from translations.choices import WordStatusChoices
 from words.models import UserWord
 
 from schedules.errors import (
     InsufficientLearningWordsError,
+    InvalidDatasetIdError,
     InvalidScheduleConfigurationError,
-    InvalidTagIdsError,
     ScheduleHasRunsError,
     ScheduleNotFoundError,
-    UnsupportedDeliveryFormatError,
 )
 from schedules.models import FixedScheduleTime, ScheduleRun, ScheduleRunItem, StudySchedule, validate_timezone
 
 MAX_FIXED_SCHEDULE_TIMES = 5
 _MISSING = object()
+logger = logging.getLogger(__name__)
 
 
 def get_user_schedule(user, schedule_id: int, *, for_update: bool = False) -> StudySchedule:
@@ -35,18 +37,19 @@ def get_user_schedule(user, schedule_id: int, *, for_update: bool = False) -> St
     return schedule
 
 
-def get_user_tags(user, tag_ids: list[int]) -> list[UserTag]:
-    unique_tag_ids = set(tag_ids)
-    tags = list(UserTag.objects.filter(user=user, pk__in=unique_tag_ids))
+def get_user_dataset(user, dataset_id: int | None) -> UserDataset | None:
+    if dataset_id is None:
+        return None
 
-    if len(tags) != len(unique_tag_ids):
-        raise InvalidTagIdsError()
+    dataset = UserDataset.objects.filter(user=user, pk=dataset_id).first()
+    if dataset is None:
+        raise InvalidDatasetIdError()
 
-    return tags
+    return dataset
 
 
 def list_user_schedules(user):
-    return StudySchedule.objects.filter(user=user).prefetch_related("tags", "fixed_times")
+    return StudySchedule.objects.filter(user=user).prefetch_related("fixed_times")
 
 
 def serialize_schedule(schedule: StudySchedule) -> dict:
@@ -54,18 +57,11 @@ def serialize_schedule(schedule: StudySchedule) -> dict:
         "id": schedule.id,
         "is_enabled": schedule.is_enabled,
         "mode": schedule.mode,
-        "delivery_format": schedule.delivery_format,
         "items_per_delivery": schedule.items_per_delivery,
         "timezone": schedule.timezone,
         "interval_minutes": schedule.interval_minutes,
         "next_run_at": schedule.next_run_at,
-        "tags": [
-            {
-                "id": tag.id,
-                "name": tag.name,
-            }
-            for tag in sorted(schedule.tags.all(), key=lambda tag: (tag.name, tag.id))
-        ],
+        "dataset_id": schedule.dataset_id,
         "fixed_times": [
             {
                 "slot": fixed_time.slot,
@@ -84,7 +80,6 @@ def serialize_schedule_run(run: ScheduleRun) -> dict:
         "schedule_id": run.schedule_id,
         "scheduled_for": run.scheduled_for,
         "status": run.status,
-        "delivery_format": run.delivery_format,
         "items": [
             {
                 "position": item.position,
@@ -108,15 +103,17 @@ def serialize_schedule_run(run: ScheduleRun) -> dict:
 
 
 def get_eligible_words(schedule: StudySchedule):
-    words = UserWord.objects.filter(
+    if schedule.dataset_id is None:
+        return UserWord.objects.filter(
+            user_id=schedule.user_id,
+            status=WordStatusChoices.LEARNING,
+        )
+
+    return UserWord.objects.filter(
+        pk__in=get_dataset_words(schedule.dataset).values("pk"),
         user_id=schedule.user_id,
         status=WordStatusChoices.LEARNING,
     )
-
-    if schedule.tags.exists():
-        words = words.filter(tags__in=schedule.tags.all()).distinct()
-
-    return words
 
 
 def validate_schedule_pool(schedule: StudySchedule) -> int:
@@ -223,9 +220,9 @@ def create_study_schedule(
     timezone_name: str,
     interval_minutes: int | None,
     fixed_times: list[time],
-    tag_ids: list[int],
+    dataset_id: int | None,
 ) -> StudySchedule:
-    tags = get_user_tags(user, tag_ids)
+    dataset = get_user_dataset(user, dataset_id)
     validate_schedule_configuration(
         mode=mode,
         items_per_delivery=items_per_delivery,
@@ -239,15 +236,13 @@ def create_study_schedule(
             user=user,
             is_enabled=is_enabled,
             mode=mode,
-            delivery_format=StudySchedule.DeliveryFormat.WORDS,
             items_per_delivery=items_per_delivery,
             timezone=timezone_name,
             interval_minutes=interval_minutes,
+            dataset=dataset,
         )
-        schedule.tags.set(tags)
         replace_fixed_times(schedule, fixed_times)
         validate_schedule_pool(schedule)
-
         if schedule.is_enabled:
             schedule.next_run_at = calculate_next_run_at(schedule)
             schedule.save(update_fields=["next_run_at", "updated_at"])
@@ -256,11 +251,11 @@ def create_study_schedule(
 
 
 def update_study_schedule(user, schedule_id: int, payload: dict) -> StudySchedule:
-    for field in ("is_enabled", "mode", "items_per_delivery", "timezone", "fixed_times", "tags"):
+    for field in ("is_enabled", "mode", "items_per_delivery", "timezone", "fixed_times"):
         if field in payload and payload[field] is None:
             raise InvalidScheduleConfigurationError(f"{field}_cannot_be_null")
 
-    tags = get_user_tags(user, payload["tags"]) if "tags" in payload else None
+    dataset = get_user_dataset(user, payload["dataset_id"]) if "dataset_id" in payload else _MISSING
 
     with transaction.atomic():
         schedule = get_user_schedule(user, schedule_id, for_update=True)
@@ -303,15 +298,15 @@ def update_study_schedule(user, schedule_id: int, payload: dict) -> StudySchedul
         schedule.items_per_delivery = items_per_delivery
         schedule.timezone = timezone_name
         schedule.interval_minutes = interval_minutes
+        if dataset is not _MISSING:
+            schedule.dataset = dataset
         schedule.save()
-
-        if tags is not None:
-            schedule.tags.set(tags)
 
         if mode == StudySchedule.Mode.INTERVAL or "fixed_times" in payload:
             replace_fixed_times(schedule, fixed_times)
 
-        validate_schedule_pool(schedule)
+        if schedule.is_enabled:
+            validate_schedule_pool(schedule)
 
         timing_changed = (
             mode != previous_mode
@@ -341,7 +336,7 @@ def delete_study_schedule(user, schedule_id: int) -> None:
             raise ScheduleHasRunsError() from exc
 
 
-def select_words_for_schedule(schedule: StudySchedule) -> list[UserWord]:
+def select_words_for_schedule(schedule: StudySchedule, *, local_date: date) -> list[UserWord]:
     validate_schedule_pool(schedule)
 
     previously_selected_word_ids = ScheduleRunItem.objects.filter(
@@ -349,27 +344,30 @@ def select_words_for_schedule(schedule: StudySchedule) -> list[UserWord]:
         run__status__in=[ScheduleRun.Status.PENDING, ScheduleRun.Status.SENT],
         user_word__isnull=False,
     ).values("user_word_id")
+    selected_today_word_ids = ScheduleRunItem.objects.filter(
+        schedule=schedule,
+        local_date=local_date,
+        run__status__in=[ScheduleRun.Status.PENDING, ScheduleRun.Status.SENT],
+        user_word__isnull=False,
+    ).values("user_word_id")
 
-    new_words = list(
-        get_eligible_words(schedule)
-        .exclude(pk__in=previously_selected_word_ids)
-        .order_by("?")[: schedule.items_per_delivery]
+    eligible_words = get_eligible_words(schedule)
+    word_pools = (
+        eligible_words.exclude(pk__in=previously_selected_word_ids),
+        eligible_words.filter(pk__in=previously_selected_word_ids).exclude(pk__in=selected_today_word_ids),
+        eligible_words.filter(pk__in=selected_today_word_ids),
     )
+    selected_words = []
+    for pool in word_pools:
+        remaining_count = schedule.items_per_delivery - len(selected_words)
+        if remaining_count == 0:
+            break
+        selected_words.extend(
+            pool.exclude(pk__in=[word.pk for word in selected_words]).order_by("?")[:remaining_count]
+        )
 
-    remaining_count = schedule.items_per_delivery - len(new_words)
-    if remaining_count == 0:
-        return new_words
-
-    repeated_words = list(
-        get_eligible_words(schedule)
-        .filter(pk__in=previously_selected_word_ids)
-        .exclude(pk__in=[word.pk for word in new_words])
-        .order_by("?")[:remaining_count]
-    )
-
-    selected_words = new_words + repeated_words
     if len(selected_words) != schedule.items_per_delivery:
-        raise RuntimeError("could_not_select_required_number_of_words")
+        raise InsufficientLearningWordsError()
 
     return selected_words
 
@@ -382,36 +380,69 @@ def create_schedule_run(schedule_id: int, scheduled_for: datetime | None = None)
 
     with transaction.atomic():
         schedule = StudySchedule.objects.select_for_update().get(pk=schedule_id)
+        return _create_schedule_run_locked(schedule, scheduled_for)
 
-        if schedule.delivery_format != StudySchedule.DeliveryFormat.WORDS:
-            raise UnsupportedDeliveryFormatError()
 
-        existing_run = ScheduleRun.objects.filter(
-            schedule=schedule,
-            scheduled_for=scheduled_for,
-        ).first()
-        if existing_run is not None:
-            return existing_run
+def create_due_schedule_run(schedule_id: int, *, now: datetime | None = None) -> ScheduleRun | None:
+    now = now or timezone.now()
+    if timezone.is_naive(now):
+        raise ValueError("now_must_be_timezone_aware")
 
-        selected_words = select_words_for_schedule(schedule)
-        local_date = timezone.localtime(scheduled_for, ZoneInfo(schedule.timezone)).date()
-        run = ScheduleRun.objects.create(
-            schedule=schedule,
-            scheduled_for=scheduled_for,
-            delivery_format=schedule.delivery_format,
-        )
-        ScheduleRunItem.objects.bulk_create(
-            [
-                ScheduleRunItem(
-                    run=run,
-                    schedule=schedule,
-                    user_word=user_word,
-                    position=position,
-                    local_date=local_date,
-                )
-                for position, user_word in enumerate(selected_words, start=1)
-            ]
-        )
+    with transaction.atomic():
+        schedule = StudySchedule.objects.select_for_update().filter(pk=schedule_id).first()
+        if schedule is None or not schedule.is_enabled or schedule.next_run_at is None:
+            return None
+        if schedule.next_run_at > now:
+            return None
+
+        scheduled_for = schedule.next_run_at
+        try:
+            run = _create_schedule_run_locked(schedule, scheduled_for)
+        except InsufficientLearningWordsError:
+            run = None
+            logger.warning(
+                "Schedule %s skipped due slot %s: fewer learning words than items_per_delivery",
+                schedule.pk,
+                scheduled_for,
+            )
+
+        if schedule.mode == StudySchedule.Mode.INTERVAL:
+            interval = timedelta(minutes=schedule.interval_minutes)
+            elapsed_intervals = (now - scheduled_for) // interval
+            schedule.next_run_at = scheduled_for + interval * (elapsed_intervals + 1)
+        else:
+            schedule.next_run_at = calculate_next_run_at(schedule, reference_at=now)
+        schedule.save(update_fields=["next_run_at", "updated_at"])
+
+        return run
+
+
+def _create_schedule_run_locked(schedule: StudySchedule, scheduled_for: datetime) -> ScheduleRun:
+    existing_run = ScheduleRun.objects.filter(
+        schedule=schedule,
+        scheduled_for=scheduled_for,
+    ).first()
+    if existing_run is not None:
+        return existing_run
+
+    local_date = timezone.localtime(scheduled_for, ZoneInfo(schedule.timezone)).date()
+    selected_words = select_words_for_schedule(schedule, local_date=local_date)
+    run = ScheduleRun.objects.create(
+        schedule=schedule,
+        scheduled_for=scheduled_for,
+    )
+    ScheduleRunItem.objects.bulk_create(
+        [
+            ScheduleRunItem(
+                run=run,
+                schedule=schedule,
+                user_word=user_word,
+                position=position,
+                local_date=local_date,
+            )
+            for position, user_word in enumerate(selected_words, start=1)
+        ]
+    )
 
     return run
 
