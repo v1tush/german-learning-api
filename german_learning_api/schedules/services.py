@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from translations.choices import WordStatusChoices
+from words.choices import InflectionTypeChoices
 from words.models import UserWord
 
 from schedules.errors import (
@@ -18,7 +19,14 @@ from schedules.errors import (
     ScheduleHasRunsError,
     ScheduleNotFoundError,
 )
-from schedules.models import FixedScheduleTime, ScheduleRun, ScheduleRunItem, StudySchedule, validate_timezone
+from schedules.models import (
+    FixedScheduleTime,
+    ScheduleRun,
+    ScheduleRunItem,
+    SiteNotification,
+    StudySchedule,
+    validate_timezone,
+)
 
 MAX_FIXED_SCHEDULE_TIMES = 5
 _MISSING = object()
@@ -57,6 +65,8 @@ def serialize_schedule(schedule: StudySchedule) -> dict:
         "id": schedule.id,
         "is_enabled": schedule.is_enabled,
         "mode": schedule.mode,
+        "exercise_kind": schedule.exercise_kind,
+        "inflection_type": schedule.inflection_type,
         "items_per_delivery": schedule.items_per_delivery,
         "timezone": schedule.timezone,
         "interval_minutes": schedule.interval_minutes,
@@ -79,7 +89,8 @@ def serialize_schedule_run(run: ScheduleRun) -> dict:
         "id": run.id,
         "schedule_id": run.schedule_id,
         "scheduled_for": run.scheduled_for,
-        "status": run.status,
+        "exercise_kind": run.exercise_kind,
+        "inflection_type": run.inflection_type,
         "items": [
             {
                 "position": item.position,
@@ -102,18 +113,24 @@ def serialize_schedule_run(run: ScheduleRun) -> dict:
     }
 
 
-def get_eligible_words(schedule: StudySchedule):
+def get_schedule_dataset_words(schedule: StudySchedule):
     if schedule.dataset_id is None:
-        return UserWord.objects.filter(
-            user_id=schedule.user_id,
-            status=WordStatusChoices.LEARNING,
-        )
+        return UserWord.objects.filter(user_id=schedule.user_id)
 
     return UserWord.objects.filter(
         pk__in=get_dataset_words(schedule.dataset).values("pk"),
         user_id=schedule.user_id,
-        status=WordStatusChoices.LEARNING,
     )
+
+
+def get_eligible_words(schedule: StudySchedule):
+    words = get_schedule_dataset_words(schedule).filter(status=WordStatusChoices.LEARNING)
+    if schedule.exercise_kind == StudySchedule.ExerciseKind.INFLECTION:
+        words = words.filter(
+            word__inflections__type=schedule.inflection_type,
+            word__inflections__value__gt="",
+        )
+    return words
 
 
 def validate_schedule_pool(schedule: StudySchedule) -> int:
@@ -123,6 +140,18 @@ def validate_schedule_pool(schedule: StudySchedule) -> int:
         raise InsufficientLearningWordsError()
 
     return available_count
+
+
+def validate_exercise_configuration(exercise_kind: str, inflection_type: str | None) -> None:
+    if exercise_kind == StudySchedule.ExerciseKind.TRANSLATION:
+        if inflection_type is not None:
+            raise InvalidScheduleConfigurationError("inflection_type_not_allowed_for_translation")
+        return
+    if exercise_kind == StudySchedule.ExerciseKind.INFLECTION:
+        if inflection_type not in InflectionTypeChoices.values:
+            raise InvalidScheduleConfigurationError("invalid_inflection_type")
+        return
+    raise InvalidScheduleConfigurationError("invalid_exercise_kind")
 
 
 def validate_schedule_configuration(
@@ -216,6 +245,8 @@ def create_study_schedule(
     *,
     is_enabled: bool,
     mode: str,
+    exercise_kind: str,
+    inflection_type: str | None,
     items_per_delivery: int,
     timezone_name: str,
     interval_minutes: int | None,
@@ -230,12 +261,15 @@ def create_study_schedule(
         interval_minutes=interval_minutes,
         fixed_times=fixed_times,
     )
+    validate_exercise_configuration(exercise_kind, inflection_type)
 
     with transaction.atomic():
         schedule = StudySchedule.objects.create(
             user=user,
             is_enabled=is_enabled,
             mode=mode,
+            exercise_kind=exercise_kind,
+            inflection_type=inflection_type,
             items_per_delivery=items_per_delivery,
             timezone=timezone_name,
             interval_minutes=interval_minutes,
@@ -251,7 +285,7 @@ def create_study_schedule(
 
 
 def update_study_schedule(user, schedule_id: int, payload: dict) -> StudySchedule:
-    for field in ("is_enabled", "mode", "items_per_delivery", "timezone", "fixed_times"):
+    for field in ("is_enabled", "mode", "exercise_kind", "items_per_delivery", "timezone", "fixed_times"):
         if field in payload and payload[field] is None:
             raise InvalidScheduleConfigurationError(f"{field}_cannot_be_null")
 
@@ -265,6 +299,10 @@ def update_study_schedule(user, schedule_id: int, payload: dict) -> StudySchedul
         previous_timezone = schedule.timezone
         previous_interval_minutes = schedule.interval_minutes
         mode = payload.get("mode", schedule.mode)
+        exercise_kind = payload.get("exercise_kind", schedule.exercise_kind)
+        inflection_type = payload.get("inflection_type", schedule.inflection_type)
+        if exercise_kind == StudySchedule.ExerciseKind.TRANSLATION and "inflection_type" not in payload:
+            inflection_type = None
         items_per_delivery = payload.get("items_per_delivery", schedule.items_per_delivery)
         timezone_name = payload.get("timezone", schedule.timezone)
         is_enabled = payload.get("is_enabled", schedule.is_enabled)
@@ -292,9 +330,12 @@ def update_study_schedule(user, schedule_id: int, payload: dict) -> StudySchedul
             interval_minutes=interval_minutes,
             fixed_times=fixed_times,
         )
+        validate_exercise_configuration(exercise_kind, inflection_type)
 
         schedule.is_enabled = is_enabled
         schedule.mode = mode
+        schedule.exercise_kind = exercise_kind
+        schedule.inflection_type = inflection_type
         schedule.items_per_delivery = items_per_delivery
         schedule.timezone = timezone_name
         schedule.interval_minutes = interval_minutes
@@ -341,13 +382,15 @@ def select_words_for_schedule(schedule: StudySchedule, *, local_date: date) -> l
 
     previously_selected_word_ids = ScheduleRunItem.objects.filter(
         schedule=schedule,
-        run__status__in=[ScheduleRun.Status.PENDING, ScheduleRun.Status.SENT],
+        run__exercise_kind=schedule.exercise_kind,
+        run__inflection_type=schedule.inflection_type,
         user_word__isnull=False,
     ).values("user_word_id")
     selected_today_word_ids = ScheduleRunItem.objects.filter(
         schedule=schedule,
         local_date=local_date,
-        run__status__in=[ScheduleRun.Status.PENDING, ScheduleRun.Status.SENT],
+        run__exercise_kind=schedule.exercise_kind,
+        run__inflection_type=schedule.inflection_type,
         user_word__isnull=False,
     ).values("user_word_id")
 
@@ -362,9 +405,7 @@ def select_words_for_schedule(schedule: StudySchedule, *, local_date: date) -> l
         remaining_count = schedule.items_per_delivery - len(selected_words)
         if remaining_count == 0:
             break
-        selected_words.extend(
-            pool.exclude(pk__in=[word.pk for word in selected_words]).order_by("?")[:remaining_count]
-        )
+        selected_words.extend(pool.exclude(pk__in=[word.pk for word in selected_words]).order_by("?")[:remaining_count])
 
     if len(selected_words) != schedule.items_per_delivery:
         raise InsufficientLearningWordsError()
@@ -430,6 +471,8 @@ def _create_schedule_run_locked(schedule: StudySchedule, scheduled_for: datetime
     run = ScheduleRun.objects.create(
         schedule=schedule,
         scheduled_for=scheduled_for,
+        exercise_kind=schedule.exercise_kind,
+        inflection_type=schedule.inflection_type,
     )
     ScheduleRunItem.objects.bulk_create(
         [
@@ -443,6 +486,7 @@ def _create_schedule_run_locked(schedule: StudySchedule, scheduled_for: datetime
             for position, user_word in enumerate(selected_words, start=1)
         ]
     )
+    SiteNotification.objects.create(run=run)
 
     return run
 

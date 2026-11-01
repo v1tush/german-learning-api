@@ -4,6 +4,7 @@ from core.models import TimeStampedModel
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from words.choices import InflectionTypeChoices
 
 
 def validate_timezone(value: str) -> None:
@@ -18,6 +19,10 @@ class StudySchedule(TimeStampedModel):
         INTERVAL = "interval", "Interval"
         FIXED_TIMES = "fixed_times", "Fixed times"
 
+    class ExerciseKind(models.TextChoices):
+        TRANSLATION = "translation", "Translation"
+        INFLECTION = "inflection", "Inflection"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -25,6 +30,8 @@ class StudySchedule(TimeStampedModel):
     )
     is_enabled = models.BooleanField(default=False)
     mode = models.CharField(max_length=16, choices=Mode, default=Mode.INTERVAL)
+    exercise_kind = models.CharField(max_length=16, choices=ExerciseKind, default=ExerciseKind.TRANSLATION)
+    inflection_type = models.CharField(max_length=30, choices=InflectionTypeChoices, null=True, blank=True)
     items_per_delivery = models.PositiveSmallIntegerField(default=1)
     timezone = models.CharField(max_length=63, default="UTC", validators=[validate_timezone])
     interval_minutes = models.PositiveIntegerField(null=True, blank=True)
@@ -53,6 +60,13 @@ class StudySchedule(TimeStampedModel):
                     | models.Q(mode="fixed_times", interval_minutes__isnull=True)
                 ),
                 name="schedule_mode_interval_configuration",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(exercise_kind="translation", inflection_type__isnull=True)
+                    | models.Q(exercise_kind="inflection", inflection_type__isnull=False)
+                ),
+                name="schedule_exercise_configuration",
             ),
         ]
         indexes = [models.Index(fields=["is_enabled", "next_run_at"])]
@@ -89,19 +103,16 @@ class FixedScheduleTime(TimeStampedModel):
 
 
 class ScheduleRun(TimeStampedModel):
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        SENT = "sent", "Sent"
-        FAILED = "failed", "Failed"
-
     schedule = models.ForeignKey(
         StudySchedule,
         on_delete=models.PROTECT,
         related_name="runs",
     )
     scheduled_for = models.DateTimeField()
-    sent_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=Status, default=Status.PENDING)
+    exercise_kind = models.CharField(
+        max_length=16, choices=StudySchedule.ExerciseKind, default=StudySchedule.ExerciseKind.TRANSLATION
+    )
+    inflection_type = models.CharField(max_length=30, choices=InflectionTypeChoices, null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -110,8 +121,17 @@ class ScheduleRun(TimeStampedModel):
                 name="unique_schedule_run_moment",
             ),
         ]
-        indexes = [models.Index(fields=["status", "scheduled_for"])]
+        indexes = [models.Index(fields=["scheduled_for"])]
         ordering = ["-scheduled_for"]
+
+
+class SiteNotification(TimeStampedModel):
+    run = models.OneToOneField(ScheduleRun, on_delete=models.CASCADE, related_name="site_notification")
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["read_at", "created_at"])]
+        ordering = ["-created_at"]
 
 
 class ScheduleRunItem(TimeStampedModel):

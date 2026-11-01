@@ -16,6 +16,8 @@ class FixedScheduleTimeOut(Schema):
 class StudyScheduleCreateIn(Schema):
     is_enabled: bool = False
     mode: str = "interval"
+    exercise_kind: str = "translation"
+    inflection_type: str | None = None
     items_per_delivery: int = 1
     timezone: str = "UTC"
     interval_minutes: int | None = None
@@ -26,6 +28,8 @@ class StudyScheduleCreateIn(Schema):
 class StudyScheduleUpdateIn(Schema):
     is_enabled: bool | None = None
     mode: str | None = None
+    exercise_kind: str | None = None
+    inflection_type: str | None = None
     items_per_delivery: int | None = None
     timezone: str | None = None
     interval_minutes: int | None = None
@@ -37,6 +41,8 @@ class StudyScheduleOut(Schema):
     id: int
     is_enabled: bool
     mode: str
+    exercise_kind: str
+    inflection_type: str | None
     items_per_delivery: int
     timezone: str
     interval_minutes: int | None
@@ -66,5 +72,18 @@ class ScheduleRunOut(Schema):
     id: int
     schedule_id: int
     scheduled_for: datetime
-    status: str
+    exercise_kind: str
+    inflection_type: str | None
     items: list[ScheduleRunItemOut]
+
+
+class ReviewCardOut(Schema):
+    id: int
+    word_id: int
+    word: str
+    language: str
+    part_of_speech: str
+    status: str
+    user_hint: str | None
+    answer: str | None
+    answer_source: str | None

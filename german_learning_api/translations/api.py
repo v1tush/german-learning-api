@@ -1,11 +1,13 @@
 from authentication.auth import BotAuth, GlobalAuth
-from django.db import transaction
 from ninja import Router
 
-from translations.models import BaseTranslation
 from translations.schemas import TranslationResponse, TranslationsListResponse
-from translations.services import get_translation, get_word_translations, serialize_translations
-from words.schemas import UserWordOut
+from translations.services import (
+    TranslationUnavailableError,
+    ensure_main_translation,
+    get_word_translations,
+    serialize_translations,
+)
 
 translations_router = Router(auth=[GlobalAuth(), BotAuth()])
 
@@ -44,22 +46,18 @@ def get_translation_suggestions(request, word_id: int):
             "translations": serialize_translations(translations),
         }
 
-    result = get_translation(word, target_language)
-
-    if result.status != "success":
-        return result
-
-    with transaction.atomic():
-        BaseTranslation.objects.bulk_create(
-            [
-                BaseTranslation(
-                    word=word,
-                    target_language=target_language,
-                    translation=translation.value,
-                    is_main=translation.is_main,
-                )
-                for translation in result.translations
-            ]
-        )
-
-    return result
+    try:
+        ensure_main_translation(word, target_language)
+    except TranslationUnavailableError as error:
+        return {
+            "word": word.word,
+            "part_of_speech": word.part_of_speech,
+            "status": error.status,
+            "translations": [],
+        }
+    return {
+        "word": word.word,
+        "part_of_speech": word.part_of_speech,
+        "status": "success",
+        "translations": serialize_translations(translations),
+    }

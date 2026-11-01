@@ -313,7 +313,6 @@ class ScheduleRunSelectionTests(TestCase):
         yesterday_run = ScheduleRun.objects.create(
             schedule=schedule,
             scheduled_for=datetime(2026, 1, 2, 18, 30, tzinfo=UTC),
-            status=ScheduleRun.Status.SENT,
         )
         ScheduleRunItem.objects.create(
             run=yesterday_run,
@@ -325,7 +324,6 @@ class ScheduleRunSelectionTests(TestCase):
         today_run = ScheduleRun.objects.create(
             schedule=schedule,
             scheduled_for=datetime(2026, 1, 2, 21, 30, tzinfo=UTC),
-            status=ScheduleRun.Status.SENT,
         )
         ScheduleRunItem.objects.create(
             run=today_run,
@@ -385,7 +383,7 @@ class ScheduleRunApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         body = response.json()
-        self.assertEqual(body["status"], ScheduleRun.Status.PENDING)
+        self.assertEqual(body["exercise_kind"], StudySchedule.ExerciseKind.TRANSLATION)
         self.assertEqual(len(body["items"]), 2)
         self.assertEqual([item["position"] for item in body["items"]], [1, 2])
         self.assertEqual(ScheduleRun.objects.filter(schedule=schedule).count(), 1)

@@ -3,6 +3,7 @@ from authentication.auth import GlobalAuth
 from datasets.api import datasets_router
 from ninja import NinjaAPI
 from schedules.api import schedules_router
+from schedules.notifications_api import notifications_router
 from tags.api import tags_router
 from translations.api import translations_router
 from users.api import users_router
@@ -23,3 +24,4 @@ api.add_router("/words/", words_router, tags=["Words"])
 api.add_router("/tags/", tags_router, tags=["Tags"])
 api.add_router("/datasets/", datasets_router, tags=["Datasets"])
 api.add_router("/schedules/", schedules_router, tags=["Schedules"])
+api.add_router("/notifications/", notifications_router, tags=["Notifications"])
