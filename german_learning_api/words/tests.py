@@ -85,12 +85,18 @@ class WordPagesApiTests(TestCase):
 
 class WordInflectionApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="inflection-user")
-        self.other_user = get_user_model().objects.create_user(username="inflection-other")
+        self.user = get_user_model().objects.create_user(username="inflection-user", telegram_id=12345, is_staff=True)
+        self.other_user = get_user_model().objects.create_user(username="inflection-other", telegram_id=67890)
         token = jwt.encode(
             {"sub": str(self.user.pk), "type": "access"}, settings.JWT_SECRET_KEY, algorithm=settings.ALGORITHMS[0]
         )
         self.auth = {"HTTP_AUTHORIZATION": f"Bearer {token}"}
+        other_token = jwt.encode(
+            {"sub": str(self.other_user.pk), "type": "access"},
+            settings.JWT_SECRET_KEY,
+            algorithm=settings.ALGORITHMS[0],
+        )
+        self.other_auth = {"HTTP_AUTHORIZATION": f"Bearer {other_token}"}
         self.word = Word.objects.create(word="gehen", part_of_speech=PartOfSpeechChoices.VERB)
         UserWord.objects.create(user=self.user, word=self.word)
         self.url = f"/api/words/{self.word.pk}/inflections"
@@ -176,25 +182,78 @@ class WordInflectionApiTests(TestCase):
         second.refresh_from_db()
         self.assertEqual((second.type, second.value), (InflectionTypeChoices.DE_PRATERITUM, "ging"))
 
-    def test_inflections_are_available_only_for_words_in_users_vocabulary(self):
+    def test_staff_can_edit_any_word_but_regular_users_can_only_read_their_own(self):
         other_word = Word.objects.create(word="Baum", part_of_speech=PartOfSpeechChoices.NOUN)
         UserWord.objects.create(user=self.other_user, word=other_word)
         other_inflection = WordInflection.objects.create(
             word=other_word, type=InflectionTypeChoices.DE_PLURAL, value="Bäume"
         )
         other_url = f"/api/words/{other_word.pk}/inflections"
+        item_url = f"{other_url}/{other_inflection.pk}"
 
         self.assertEqual(self.client.get(self.url).status_code, 401)
-        self.assertEqual(self.client.get(other_url, **self.auth).status_code, 404)
+        self.assertEqual(self.client.get(self.url, **self.other_auth).status_code, 404)
+        self.assertEqual(self.client.get(other_url, **self.other_auth).json()[0]["value"], "Bäume")
+        self.assertEqual(self.client.get(item_url, **self.other_auth).status_code, 200)
+        self.assertEqual(self.client.get(other_url, **self.auth).status_code, 200)
+        self.assertEqual(self.client.get(item_url, **self.auth).status_code, 200)
         self.assertEqual(
             self.client.post(
                 other_url,
                 data={"type": InflectionTypeChoices.DE_PLURAL, "value": "Bäume"},
                 content_type="application/json",
-                **self.auth,
+                **self.other_auth,
             ).status_code,
-            404,
+            403,
         )
-        self.assertEqual(self.client.get(f"{other_url}/{other_inflection.pk}", **self.auth).status_code, 404)
-        self.assertEqual(self.client.delete(f"{other_url}/{other_inflection.pk}", **self.auth).status_code, 404)
+        self.assertEqual(
+            self.client.patch(
+                item_url, data={"value": "Baeume"}, content_type="application/json", **self.other_auth
+            ).status_code,
+            403,
+        )
+        self.assertEqual(self.client.delete(item_url, **self.other_auth).status_code, 403)
         self.assertTrue(WordInflection.objects.filter(pk=other_inflection.pk).exists())
+        self.assertEqual(
+            self.client.patch(
+                item_url, data={"value": "Baeume"}, content_type="application/json", **self.auth
+            ).status_code,
+            200,
+        )
+        self.assertEqual(self.client.get(item_url, **self.other_auth).json()["value"], "Baeume")
+        self.assertEqual(self.client.delete(item_url, **self.auth).status_code, 204)
+
+    def test_staff_bot_can_create_a_global_form_and_regular_bot_cannot(self):
+        word = Word.objects.create(word="Maus", part_of_speech=PartOfSpeechChoices.NOUN)
+        UserWord.objects.create(user=self.other_user, word=word)
+        url = f"/api/words/{word.pk}/inflections"
+        data = {"type": InflectionTypeChoices.DE_PLURAL, "value": "Mäuse"}
+        staff_bot_auth = {
+            "HTTP_X_API_KEY": settings.TG_BOT_AUTH_KEY,
+            "HTTP_X_TELEGRAM_ID": str(self.user.telegram_id),
+        }
+        regular_bot_auth = {
+            "HTTP_X_API_KEY": settings.TG_BOT_AUTH_KEY,
+            "HTTP_X_TELEGRAM_ID": str(self.other_user.telegram_id),
+        }
+
+        self.assertEqual(
+            self.client.post(url, data=data, content_type="application/json", **regular_bot_auth).status_code, 403
+        )
+        response = self.client.post(url, data=data, content_type="application/json", **staff_bot_auth)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.client.get(url, **regular_bot_auth).json()[0]["value"], "Mäuse")
+
+    def test_inactive_staff_cannot_change_forms(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+
+        response = self.client.post(
+            self.url,
+            data={"type": InflectionTypeChoices.DE_PARTIZIP_2, "value": "gegangen"},
+            content_type="application/json",
+            **self.auth,
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(WordInflection.objects.filter(word=self.word).exists())

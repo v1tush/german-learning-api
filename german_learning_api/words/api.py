@@ -20,9 +20,10 @@ from words.schemas import (
     WordPageOut,
 )
 from words.services import (
-    _get_owned_word,
+    _get_readable_inflection_word,
     _get_user_tags,
     _get_user_word,
+    _get_writable_inflection_word,
     _validate_inflection_type,
     _validate_selected_translation,
 )
@@ -69,13 +70,13 @@ def get_word_page(request, sort: Literal["id", "popular"], page: int):
 
 @words_router.get("/{int:word_id}/inflections", response=list[WordInflectionOut], auth=_inflection_auth)
 def list_word_inflections(request, word_id: int):
-    word = _get_owned_word(request.auth, word_id)
+    word = _get_readable_inflection_word(request.auth, word_id)
     return WordInflection.objects.filter(word=word).order_by("type")
 
 
 @words_router.post("/{int:word_id}/inflections", response={201: WordInflectionOut}, auth=_inflection_auth)
 def create_word_inflection(request, word_id: int, data: WordInflectionIn):
-    word = _get_owned_word(request.auth, word_id)
+    word = _get_writable_inflection_word(request.auth, word_id)
     _validate_inflection_type(word, data.type)
     try:
         with transaction.atomic():
@@ -87,13 +88,13 @@ def create_word_inflection(request, word_id: int, data: WordInflectionIn):
 
 @words_router.get("/{int:word_id}/inflections/{int:inflection_id}", response=WordInflectionOut, auth=_inflection_auth)
 def get_word_inflection(request, word_id: int, inflection_id: int):
-    word = _get_owned_word(request.auth, word_id)
+    word = _get_readable_inflection_word(request.auth, word_id)
     return get_object_or_404(WordInflection, pk=inflection_id, word=word)
 
 
 @words_router.patch("/{int:word_id}/inflections/{int:inflection_id}", response=WordInflectionOut, auth=_inflection_auth)
 def update_word_inflection(request, word_id: int, inflection_id: int, data: WordInflectionUpdate):
-    word = _get_owned_word(request.auth, word_id)
+    word = _get_writable_inflection_word(request.auth, word_id)
     payload = data.model_dump(exclude_unset=True)
     if any(value is None for value in payload.values()):
         raise HttpError(422, "inflection_fields_cannot_be_null")
@@ -114,7 +115,7 @@ def update_word_inflection(request, word_id: int, inflection_id: int, data: Word
 
 @words_router.delete("/{int:word_id}/inflections/{int:inflection_id}", response={204: None}, auth=_inflection_auth)
 def delete_word_inflection(request, word_id: int, inflection_id: int):
-    word = _get_owned_word(request.auth, word_id)
+    word = _get_writable_inflection_word(request.auth, word_id)
     inflection = get_object_or_404(WordInflection, pk=inflection_id, word=word)
     inflection.delete()
     return 204, None

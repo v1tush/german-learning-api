@@ -20,6 +20,18 @@ def _get_owned_word(user, word_id: int) -> Word:
     return get_object_or_404(Word.objects.filter(user_links__user=user), pk=word_id)
 
 
+def _get_readable_inflection_word(user, word_id: int) -> Word:
+    if user.is_active and user.is_staff:
+        return get_object_or_404(Word, pk=word_id)
+    return _get_owned_word(user, word_id)
+
+
+def _get_writable_inflection_word(user, word_id: int) -> Word:
+    if not user.is_active or not user.is_staff:
+        raise HttpError(403, "staff_only")
+    return get_object_or_404(Word, pk=word_id)
+
+
 def _validate_inflection_type(word: Word, inflection_type: InflectionTypeChoices) -> None:
     if (word.language, word.part_of_speech) != _INFLECTION_WORD_TYPES.get(inflection_type):
         raise HttpError(422, "inflection_type_does_not_match_word")
