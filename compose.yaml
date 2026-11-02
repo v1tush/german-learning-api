@@ -54,6 +54,10 @@ services:
       redis:
         condition: service_healthy
 
+  bot:
+    <<: *app
+    command: ["python", "-m", "telegram_bot.main"]
+
   worker:
     <<: *app
     command: ["celery", "-A", "german_learning_api", "worker", "--loglevel=info"]
