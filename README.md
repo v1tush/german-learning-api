@@ -88,6 +88,14 @@ docker compose exec web python manage.py test
 
 Run the configured linter from the repository root with `uv run ruff check .`.
 
+To run Ruff automatically before each local commit, install the Git hook once from the repository root:
+
+```sh
+uv run pre-commit install
+```
+
+The hook runs `ruff check --fix` and then `ruff format` on staged Python files. If Ruff changes a file, review and stage the change before committing again. GitHub does not run local Git hooks; a GitHub Actions workflow is needed to check pull requests on GitHub.
+
 ## Authentication and API routes
 
 The API is mounted under `/api/`. `POST /api/authentication/register` and `POST /api/authentication/login` return an access token and set an HTTP-only refresh cookie. Send the access token as `Authorization: Bearer <access_token>` on user routes. `POST /api/authentication/refresh` rotates the refresh token; `POST /api/authentication/logout` revokes it. `GET /api/users/me/` returns the signed-in user's profile.
