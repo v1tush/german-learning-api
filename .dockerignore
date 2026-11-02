@@ -1,0 +1,16 @@
+.git
+.idea
+.venv
+.uv
+.env
+.env.example
+compose.yaml
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+**/media
+staticfiles
+celerybeat-schedule*
+*.sqlite3
+*.log
