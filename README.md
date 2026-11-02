@@ -23,7 +23,7 @@ docker compose exec web python manage.py createsuperuser
 
 Use `docker compose logs -f web worker beat` to inspect the application processes and `docker compose down` to stop them. The Compose stack is intended for development: `web` uses Django's `runserver` and binds to the host's loopback interface. Keep only one Beat instance running so each schedule is dispatched once per minute. PostgreSQL, Redis, and uploaded media use persistent Docker volumes.
 
-Compose services are named `web`, `worker`, `beat`, `migrate`, `redis`, and `db`. Inside Compose, `DB_HOST` is set to `db` and `CELERY_BROKER_URL` is set to `redis://redis:6379/0`; local processes can use the host and broker values in `.env` instead. Single-quote `.env` values containing `$` so Compose passes them through unchanged.
+Compose services are named `web`, `worker`, `beat`, `migrate`, `redis`, and `db`. Inside Compose, `DB_HOST` is set to `db` and `CELERY_BROKER_URL` is set to `redis://redis:6379/0`; local processes can use the host and broker values in `.env` instead. Single-quote literal `$NAME` sequences in `.env` so Compose preserves them. Avoid `${NAME}` in secrets: `python-dotenv`, which parses `.env` for `environs`, expands that syntax even inside single quotes.
 
 ## Configuration
 
