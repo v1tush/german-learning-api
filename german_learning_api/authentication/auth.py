@@ -1,3 +1,5 @@
+import secrets
+
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -63,19 +65,26 @@ class CookieRefreshAuth(APIKeyCookie):
         return decoded
 
 
-class BotAuth(APIKeyHeader):
+class BotServiceAuth(APIKeyHeader):
     param_name = "X-API-Key"
+
+    def authenticate(self, request: HttpRequest, key: str | None) -> bool | None:
+        if not key:
+            return None
+        if not secrets.compare_digest(key, secret_tg):
+            raise HttpError(401, "token_is_wrong")
+        return True
+
+
+class BotAuth(BotServiceAuth):
     openapi_description = (
         "Telegram bot authorization requires both X-API-Key and X-Telegram-ID "
         "headers. X-API-Key identifies the bot; X-Telegram-ID identifies the user."
     )
 
     def authenticate(self, request: HttpRequest, key: str | None) -> User | None:
-        if not key:
+        if not super().authenticate(request, key):
             return None
-
-        if key != secret_tg:
-            raise HttpError(401, "token_is_wrong")
 
         tg_id = request.headers.get("X-Telegram-ID")
         if not tg_id:

@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.templatetags.static import static
@@ -40,3 +41,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_new_user(self):
         return (timezone.now() - self.date_joined) < timedelta(days=1)
+
+
+class TelegramLinkRequest(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="telegram_link_request"
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
