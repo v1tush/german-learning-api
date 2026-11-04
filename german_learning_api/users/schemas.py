@@ -3,6 +3,7 @@ from datetime import datetime
 from django.contrib.auth import get_user_model
 from ninja import ModelSchema, Schema
 from pydantic import Field
+from words.choices import LanguageChoices
 
 User = get_user_model()
 
@@ -22,6 +23,19 @@ class UserMeOut(ModelSchema):
             "current_learning_language",
             "avatar",
         ]
+
+
+class UserMeUpdateIn(Schema):
+    username: str | None = Field(default=None, max_length=30)
+    email: str | None = Field(default=None, max_length=254)
+    current_using_language: LanguageChoices | None = None
+    current_learning_language: LanguageChoices | None = None
+
+
+class TelegramRegisterIn(Schema):
+    username: str = Field(min_length=1, max_length=30)
+    current_using_language: LanguageChoices
+    current_learning_language: LanguageChoices
 
 
 class TelegramLinkIssueOut(Schema):

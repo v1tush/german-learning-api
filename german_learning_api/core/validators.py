@@ -2,7 +2,7 @@ import io
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from PIL import Image
+from PIL import Image, ImageOps
 
 from core.exceptions import (
     TooManyPixelsError,
@@ -14,18 +14,25 @@ from core.utils import avatar_transform
 
 def _process_and_compress_image(file, max_resolution, resize_func):
     img = Image.open(file)
-
+    original_format = img.format
+    mime = Image.MIME.get(original_format)
+    if mime not in settings.IMAGE_ALLOWED_TYPES or (
+        file.content_type != mime and not (mime == "image/jpeg" and file.content_type == "image/jpg")
+    ):
+        raise WrongImageTypeError("Avatar should be jpeg, png or webp")
     if img.width * img.height > max_resolution:
         raise TooManyPixelsError("Image resolution is too high")
-
-    original_format = img.format
+    img = ImageOps.exif_transpose(img)
     img = resize_func(img)
 
     bytes_io = io.BytesIO()
-    save_format = original_format if original_format else "JPEG"
-    img.save(bytes_io, format=save_format)
+    img.save(bytes_io, format=original_format)
 
-    return ContentFile(bytes_io.getvalue(), name=file.name)
+    if bytes_io.tell() > settings.AVATAR_SIZE:
+        raise WrongFileSizeError("Processed avatar is too large")
+
+    extension = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}[original_format]
+    return ContentFile(bytes_io.getvalue(), name=f"avatar.{extension}")
 
 
 def validate_avatar(file):

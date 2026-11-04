@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from ninja.errors import HttpError
+from words.choices import LanguageChoices
 
 from users.models import TelegramLinkRequest
 
@@ -45,6 +46,42 @@ def parse_telegram_id(raw_id: str | None) -> int:
     if not 0 < telegram_id <= MAX_TELEGRAM_ID:
         raise HttpError(400, "invalid_telegram_id")
     return telegram_id
+
+
+def register_telegram_user(
+    telegram_id: int,
+    *,
+    username: str,
+    current_using_language: LanguageChoices,
+    current_learning_language: LanguageChoices,
+):
+    username = username.strip()
+    if not username:
+        raise HttpError(422, "username_cannot_be_empty")
+
+    if User.objects.filter(telegram_id=telegram_id).exists():
+        raise HttpError(409, "telegram_already_linked")
+    if User.objects.filter(username=username).exists():
+        raise HttpError(409, "username_already_exists")
+
+    try:
+        with transaction.atomic():
+            user = User(
+                username=username,
+                telegram_id=telegram_id,
+                current_using_language=current_using_language,
+                current_learning_language=current_learning_language,
+            )
+            user.set_unusable_password()
+            user.save()
+    except IntegrityError as error:
+        if User.objects.filter(telegram_id=telegram_id).exists():
+            raise HttpError(409, "telegram_already_linked") from error
+        if User.objects.filter(username=username).exists():
+            raise HttpError(409, "username_already_exists") from error
+        raise
+
+    return user
 
 
 def confirm_telegram_link(token: str, telegram_id: int) -> dict:
