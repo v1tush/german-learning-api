@@ -14,7 +14,7 @@ from translations.schemas import Translation, TranslationResponse
 from words.choices import InflectionTypeChoices, PartOfSpeechChoices
 from words.models import UserWord, Word, WordInflection
 
-from schedules.models import SiteNotification, StudySchedule
+from schedules.models import ScheduleRun, SiteNotification, StudySchedule
 from schedules.services import create_due_schedule_run, create_schedule_run, get_eligible_words
 
 
@@ -136,6 +136,46 @@ class SiteFlowTests(TestCase):
         response = self.client.post(f"/api/notifications/{notification_id}/read", **self.auth)
         self.assertEqual(response.status_code, 404)
         self.assertIsNone(SiteNotification.objects.get(pk=notification_id).read_at)
+
+    def test_read_all_notifications_only_marks_current_users_unread(self):
+        now = timezone.now()
+        schedule = self.add_schedule()
+        first = SiteNotification.objects.create(run=ScheduleRun.objects.create(schedule=schedule, scheduled_for=now))
+        second = SiteNotification.objects.create(
+            run=ScheduleRun.objects.create(schedule=schedule, scheduled_for=now + timedelta(minutes=1))
+        )
+        already_read = SiteNotification.objects.create(
+            run=ScheduleRun.objects.create(schedule=schedule, scheduled_for=now + timedelta(minutes=2))
+        )
+        previous_read_at = now - timedelta(hours=1)
+        SiteNotification.objects.filter(pk=already_read.pk).update(read_at=previous_read_at)
+
+        other_schedule = self.add_schedule(user=self.other_user)
+        other_users_notification = SiteNotification.objects.create(
+            run=ScheduleRun.objects.create(schedule=other_schedule, scheduled_for=now)
+        )
+        url = "/api/notifications/read-all"
+
+        self.assertEqual(self.client.post(url).status_code, 401)
+        self.assertIsNone(SiteNotification.objects.get(pk=first.pk).read_at)
+
+        response = self.client.post(url, **self.auth)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.content, b"")
+        first.refresh_from_db()
+        second.refresh_from_db()
+        already_read.refresh_from_db()
+        other_users_notification.refresh_from_db()
+        self.assertIsNotNone(first.read_at)
+        self.assertEqual(second.read_at, first.read_at)
+        self.assertEqual(first.updated_at, first.read_at)
+        self.assertEqual(already_read.read_at, previous_read_at)
+        self.assertIsNone(other_users_notification.read_at)
+        self.assertEqual(self.client.get("/api/notifications/", **self.auth).json(), [])
+
+        self.assertEqual(self.client.post(url, **self.auth).status_code, 204)
+        first.refresh_from_db()
+        self.assertEqual(first.read_at, second.read_at)
 
     def test_card_list_returns_all_dataset_statuses_and_translation_priority(self):
         custom = self.add_word("gehen")

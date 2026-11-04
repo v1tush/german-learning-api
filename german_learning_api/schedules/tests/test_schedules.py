@@ -249,13 +249,15 @@ class ScheduleRunSelectionTests(TestCase):
         extra_word = self.create_user_word("zwei")
         dataset.extra_words.add(extra_word)
         second_runs = [
-            create_schedule_run(schedule.pk, scheduled_for=scheduled_for + timedelta(minutes=1)) for schedule in schedules
+            create_schedule_run(schedule.pk, scheduled_for=scheduled_for + timedelta(minutes=1))
+            for schedule in schedules
         ]
         self.assertTrue(all(self.get_item_ids(run) == {extra_word.pk} for run in second_runs))
 
         tagged_word = self.create_user_word("drei", tags=(self.selected_tag,))
         third_runs = [
-            create_schedule_run(schedule.pk, scheduled_for=scheduled_for + timedelta(minutes=2)) for schedule in schedules
+            create_schedule_run(schedule.pk, scheduled_for=scheduled_for + timedelta(minutes=2))
+            for schedule in schedules
         ]
         self.assertTrue(all(self.get_item_ids(run) == {tagged_word.pk} for run in third_runs))
 

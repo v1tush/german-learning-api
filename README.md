@@ -108,7 +108,7 @@ Most personal resources also accept bot authentication with `X-API-Key` and `X-T
 | Tags and datasets | `/api/tags/`, `/api/datasets/`, `GET /api/datasets/{dataset_id}/words` |
 | Translations | `GET /api/translations/words/{word_id}/translations`, `POST /api/translations/words/{word_id}/translation-suggestions` |
 | Schedules and cards | `/api/schedules/`, `GET /api/schedules/{schedule_id}/cards` |
-| Notifications | `GET /api/notifications/`, `POST /api/notifications/{notification_id}/read` |
+| Notifications | `GET /api/notifications/`, `POST /api/notifications/{notification_id}/read`, `POST /api/notifications/read-all` |
 
 The public catalogue page route requires `sort` (`id` or `popular`) and a one-based `page` number. It returns at most 100 words with `page`, `sort`, `page_size`, and `has_next`. `popular` orders by the current number of users who added a word, then by ascending ID. An out-of-range page returns an empty `words` list. The old `GET /api/words` list route is no longer available.
 
@@ -155,7 +155,7 @@ The migration from older tag-based schedules creates a separate dataset named `Ð
 
 ### Site notifications and review cards
 
-Each schedule run creates one site notification. A client can poll `GET /api/notifications/` once a minute; it returns unread notifications by default, while `?unread_only=false` includes read ones. `POST /api/notifications/{notification_id}/read` marks one as read without disabling its schedule or changing `next_run_at`. The notification includes `schedule_id` and `dataset_id` so the client can open the review.
+Each schedule run creates one site notification. A client can poll `GET /api/notifications/` once a minute; it returns unread notifications by default, while `?unread_only=false` includes read ones. `POST /api/notifications/{notification_id}/read` marks one as read without disabling its schedule or changing `next_run_at`. `POST /api/notifications/read-all` marks all unread notifications of the signed-in user as read and returns `204 No Content`. The notification includes `schedule_id` and `dataset_id` so the client can open the review.
 
 `GET /api/schedules/{schedule_id}/cards` returns the current dataset's words with their status, answer, and answer source. With `dataset_id: null`, it returns all of the user's words. A Quizlet-style client can select `learning` words, shuffle them, and display cards. For an inflection exercise, `answer` is the requested form; for a translation exercise, it follows the translation priority described above. A missing answer is `null`, so the client can omit that card or request translation generation with `resolve-answer`.
 

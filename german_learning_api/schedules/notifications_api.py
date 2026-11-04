@@ -47,6 +47,15 @@ def list_notifications(request, unread_only: bool = True):
     return [serialize_notification(notification) for notification in notifications.order_by("-created_at", "-pk")]
 
 
+@notifications_router.post("/read-all", response={204: None})
+def read_all_notifications(request):
+    now = timezone.now()
+    SiteNotification.objects.filter(run__schedule__user=request.auth, read_at__isnull=True).update(
+        read_at=now, updated_at=now
+    )
+    return 204, None
+
+
 @notifications_router.post("/{notification_id}/read", response={200: SiteNotificationOut, 404: ErrorOut})
 def read_notification(request, notification_id: int):
     notification = get_object_or_404(
