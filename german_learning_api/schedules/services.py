@@ -11,6 +11,7 @@ from django.utils import timezone
 from translations.choices import WordStatusChoices
 from words.choices import InflectionTypeChoices
 from words.models import UserWord
+from words.services import get_custom_translation
 
 from schedules.errors import (
     InsufficientLearningWordsError,
@@ -83,7 +84,11 @@ def serialize_schedule(schedule: StudySchedule) -> dict:
 
 
 def serialize_schedule_run(run: ScheduleRun) -> dict:
-    items = ScheduleRunItem.objects.filter(run=run).select_related("user_word__word")
+    items = (
+        ScheduleRunItem.objects.filter(run=run)
+        .select_related("user_word__word")
+        .prefetch_related("user_word__translations")
+    )
 
     return {
         "id": run.id,
@@ -103,7 +108,9 @@ def serialize_schedule_run(run: ScheduleRun) -> dict:
                     "word": item.user_word.word.word,
                     "language": item.user_word.word.language,
                     "part_of_speech": item.user_word.word.part_of_speech,
-                    "custom_translation": item.user_word.custom_translation,
+                    "custom_translation": get_custom_translation(
+                        item.user_word, run.schedule.user.current_using_language
+                    ),
                     "user_hint": item.user_word.user_hint,
                     "status": item.user_word.status,
                 },

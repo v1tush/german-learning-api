@@ -1,5 +1,6 @@
+from django.db.models import Prefetch
 from translations.models import BaseTranslation
-from words.models import WordInflection
+from words.models import UserWordTranslation, WordInflection
 
 from schedules.models import StudySchedule
 from schedules.services import get_schedule_dataset_words
@@ -10,7 +11,19 @@ def list_schedule_cards(schedule: StudySchedule, *, user_word_id: int | None = N
     words = get_schedule_dataset_words(schedule)
     if user_word_id is not None:
         words = words.filter(pk=user_word_id)
-    user_words = list(words.select_related("word", "selected_translation").order_by("pk"))
+    user_words = list(
+        words.select_related("word")
+        .prefetch_related(
+            Prefetch(
+                "translations",
+                queryset=UserWordTranslation.objects.filter(
+                    target_language=schedule.user.current_using_language
+                ).select_related("base_translation"),
+                to_attr="current_translations",
+            )
+        )
+        .order_by("pk")
+    )
     word_ids = {user_word.word_id for user_word in user_words}
     main_translations = {}
     inflections = {}
@@ -35,18 +48,12 @@ def list_schedule_cards(schedule: StudySchedule, *, user_word_id: int | None = N
         answer = None
         answer_source = None
         if schedule.exercise_kind == StudySchedule.ExerciseKind.TRANSLATION:
-            custom = (user_word.custom_translation or "").strip()
-            selected = user_word.selected_translation
-            selected_answer = (selected.translation or "").strip() if selected else ""
-            if custom:
-                answer, answer_source = custom, "custom"
-            elif (
-                selected
-                and selected.word_id == user_word.word_id
-                and selected.target_language == schedule.user.current_using_language
-                and selected_answer
-            ):
-                answer, answer_source = selected_answer, "selected"
+            primary = next((row for row in user_word.current_translations if row.is_card_primary), None)
+            if primary is not None:
+                if primary.base_translation_id is None:
+                    answer, answer_source = primary.custom_translation.strip(), "custom"
+                else:
+                    answer, answer_source = primary.base_translation.translation.strip(), "selected"
             elif main := main_translations.get(user_word.word_id):
                 answer, answer_source = main, "main"
         elif form := inflections.get(user_word.word_id):

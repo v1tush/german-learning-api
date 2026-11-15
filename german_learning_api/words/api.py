@@ -2,12 +2,12 @@ from typing import Literal
 
 from authentication.auth import BotAuth, GlobalAuth
 from django.db import IntegrityError, transaction
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 
-from words.models import UserWord, Word, WordInflection
+from words.models import UserWord, UserWordTranslation, Word, WordInflection
 from words.schemas import (
     UserWordIn,
     UserWordOut,
@@ -25,7 +25,8 @@ from words.services import (
     _get_user_word,
     _get_writable_inflection_word,
     _validate_inflection_type,
-    _validate_selected_translation,
+    replace_translation_selection,
+    serialize_user_word,
 )
 
 words_router = Router()
@@ -33,6 +34,26 @@ user_words_router = Router(auth=[GlobalAuth(), BotAuth()])
 _MISSING = object()
 _inflection_auth = [GlobalAuth(), BotAuth()]
 _WORD_PAGE_SIZE = 100
+_TRANSLATION_CONSTRAINTS = {
+    "user_word_translation_one_source",
+    "unique_user_word_base_translation",
+    "unique_user_word_custom_per_language",
+}
+
+
+def _raise_translation_integrity_error(error: IntegrityError) -> None:
+    constraint = getattr(getattr(error.__cause__, "diag", None), "constraint_name", None)
+    if constraint in _TRANSLATION_CONSTRAINTS:
+        raise HttpError(409, "translation_selection_conflict") from error
+    raise error
+
+
+def _current_translation_prefetch(target_language: str) -> Prefetch:
+    return Prefetch(
+        "translations",
+        queryset=UserWordTranslation.objects.filter(target_language=target_language).select_related("base_translation"),
+        to_attr="current_translations",
+    )
 
 
 @words_router.post("", response=WordOut)
@@ -126,63 +147,73 @@ def add_user_word(request, data: UserWordIn):
     payload = data.model_dump()
     word_id = payload.pop("word")
     tag_ids = payload.pop("tags")
-    selected_translation_id = payload.pop("selected_translation")
+    payload.pop("translation_selection")
 
     word = get_object_or_404(Word, pk=word_id)
     tags = _get_user_tags(request.auth, tag_ids)
-    _validate_selected_translation(selected_translation_id, word.pk)
-    payload["selected_translation_id"] = selected_translation_id
 
-    with transaction.atomic():
-        user_word, created = UserWord.objects.get_or_create(
-            user=request.auth,
-            word=word,
-            defaults=payload,
-        )
-        if created:
-            user_word.tags.set(tags)
+    try:
+        with transaction.atomic():
+            user_word, created = UserWord.objects.get_or_create(
+                user=request.auth,
+                word=word,
+                defaults=payload,
+            )
+            if created:
+                user_word.tags.set(tags)
+                if data.translation_selection is not None:
+                    replace_translation_selection(
+                        user_word, request.auth.current_using_language, data.translation_selection
+                    )
+    except IntegrityError as error:
+        _raise_translation_integrity_error(error)
 
-    return user_word
+    return serialize_user_word(user_word, request.auth.current_using_language)
 
 
 @user_words_router.get("", response=list[UserWordOut])
 def get_user_words(request):
-    return UserWord.objects.filter(user=request.auth).prefetch_related("tags")
+    words = UserWord.objects.filter(user=request.auth).prefetch_related(
+        "tags", _current_translation_prefetch(request.auth.current_using_language)
+    )
+    return [serialize_user_word(word, request.auth.current_using_language) for word in words]
 
 
 @user_words_router.get("/{user_word_id}", response=UserWordOut)
 def get_user_word(request, user_word_id: int):
-    return _get_user_word(request.auth, user_word_id)
+    return serialize_user_word(_get_user_word(request.auth, user_word_id), request.auth.current_using_language)
 
 
 @user_words_router.patch("/{user_word_id}", response=UserWordOut)
 def update_user_word(request, user_word_id: int, data: UserWordUpdate):
     payload = data.model_dump(exclude_unset=True)
     tag_ids = payload.pop("tags", _MISSING)
+    selection = payload.pop("translation_selection", _MISSING)
 
     if "status" in payload and payload["status"] is None:
         raise HttpError(422, "status_cannot_be_null")
-
-    user_word = _get_user_word(request.auth, user_word_id)
-
-    if "selected_translation" in payload:
-        selected_translation_id = payload.pop("selected_translation")
-        _validate_selected_translation(selected_translation_id, user_word.word_id)
-        payload["selected_translation_id"] = selected_translation_id
+    if selection is None:
+        raise HttpError(422, "translation_selection_cannot_be_null")
 
     tags = _get_user_tags(request.auth, tag_ids or []) if tag_ids is not _MISSING else None
 
-    with transaction.atomic():
-        for field, value in payload.items():
-            setattr(user_word, field, value)
+    try:
+        with transaction.atomic():
+            user_word = get_object_or_404(UserWord.objects.select_for_update(), pk=user_word_id, user=request.auth)
+            for field, value in payload.items():
+                setattr(user_word, field, value)
+            if selection is not _MISSING:
+                replace_translation_selection(
+                    user_word, request.auth.current_using_language, data.translation_selection
+                )
+            if payload or tags is not None or selection is not _MISSING:
+                user_word.save()
+            if tags is not None:
+                user_word.tags.set(tags)
+    except IntegrityError as error:
+        _raise_translation_integrity_error(error)
 
-        if payload or tags is not None:
-            user_word.save()
-
-        if tags is not None:
-            user_word.tags.set(tags)
-
-    return user_word
+    return serialize_user_word(user_word, request.auth.current_using_language)
 
 
 @user_words_router.delete("/{user_word_id}", response={204: None})

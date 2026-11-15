@@ -12,7 +12,7 @@ from translations.choices import WordStatusChoices
 from translations.models import BaseTranslation
 from translations.schemas import Translation, TranslationResponse
 from words.choices import InflectionTypeChoices, PartOfSpeechChoices
-from words.models import UserWord, Word, WordInflection
+from words.models import UserWord, UserWordTranslation, Word, WordInflection
 
 from schedules.models import ScheduleRun, SiteNotification, StudySchedule
 from schedules.services import create_due_schedule_run, create_schedule_run, get_eligible_words
@@ -183,13 +183,15 @@ class SiteFlowTests(TestCase):
         main = self.add_word("machen", status=WordStatusChoices.PAUSED)
         missing = self.add_word("finden", status=WordStatusChoices.MASTERED)
         self.add_word("outside")
-        custom.custom_translation = " мой перевод "
-        custom.save(update_fields=["custom_translation"])
+        UserWordTranslation.objects.create(
+            user_word=custom, target_language="ru", custom_translation=" мой перевод ", is_card_primary=True
+        )
         chosen_translation = BaseTranslation.objects.create(
             word=selected.word, target_language="ru", translation="увидеть", is_main=False
         )
-        selected.selected_translation = chosen_translation
-        selected.save(update_fields=["selected_translation"])
+        UserWordTranslation.objects.create(
+            user_word=selected, target_language="ru", base_translation=chosen_translation, is_card_primary=True
+        )
         BaseTranslation.objects.create(word=main.word, target_language="ru", translation="делать", is_main=True)
         dataset = UserDataset.objects.create(user=self.user, name="cards")
         dataset.extra_words.add(custom, selected, main, missing)
@@ -297,13 +299,17 @@ class SiteFlowTests(TestCase):
         self.assertEqual(response.json()["detail"], "not_found")
         self.assertFalse(BaseTranslation.objects.filter(word=user_word.word).exists())
 
-    def test_custom_translation_beats_selected_and_main_without_ai(self):
+    def test_only_primary_translation_is_used_without_ai(self):
         user_word = self.add_word("gehen")
-        user_word.custom_translation = "mine"
-        user_word.selected_translation = BaseTranslation.objects.create(
+        selected = BaseTranslation.objects.create(
             word=user_word.word, target_language="ru", translation="selected", is_main=False
         )
-        user_word.save(update_fields=["custom_translation", "selected_translation"])
+        UserWordTranslation.objects.create(
+            user_word=user_word, target_language="ru", custom_translation="mine", is_card_primary=False
+        )
+        UserWordTranslation.objects.create(
+            user_word=user_word, target_language="ru", base_translation=selected, is_card_primary=True
+        )
         BaseTranslation.objects.create(word=user_word.word, target_language="ru", translation="main", is_main=True)
         schedule = self.add_schedule()
         url = f"/api/schedules/{schedule.pk}/cards/{user_word.pk}/resolve-answer"
@@ -312,8 +318,8 @@ class SiteFlowTests(TestCase):
             response = self.client.post(url, **self.auth)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["answer"], "mine")
-        self.assertEqual(response.json()["answer_source"], "custom")
+        self.assertEqual(response.json()["answer"], "selected")
+        self.assertEqual(response.json()["answer_source"], "selected")
         generate.assert_not_called()
 
     def test_card_answer_cannot_be_resolved_outside_schedule_dataset(self):

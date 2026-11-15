@@ -66,35 +66,52 @@ class WordInflectionOut(Schema):
     updated_at: datetime
 
 
+class UserWordTranslationSelectionIn(Schema):
+    base_translation_ids: list[int] = Field(default_factory=list)
+    primary_base_translation_ids: list[int] = Field(default_factory=list)
+    custom_translation: str | None = Field(default=None, max_length=500)
+    custom_is_card_primary: bool = False
+
+
 class UserWordIn(ModelSchema):
     tags: list[int] = Field(default_factory=list)
     status: WordStatusChoices = WordStatusChoices.LEARNING
+    translation_selection: UserWordTranslationSelectionIn | None = None
 
     class Meta:
         model = UserWord
-        fields = ["word", "custom_translation", "user_hint", "tags", "status", "selected_translation"]
+        fields = ["word", "user_hint", "tags", "status"]
 
 
 class UserWordUpdate(ModelSchema):
     status: WordStatusChoices | None = None
+    translation_selection: UserWordTranslationSelectionIn | None = None
 
     class Meta:
         model = UserWord
-        fields = ["custom_translation", "user_hint", "tags", "status", "selected_translation"]
+        fields = ["user_hint", "tags", "status"]
         fields_optional = "__all__"
 
 
-class UserWordOut(ModelSchema):
-    class Meta:
-        model = UserWord
-        fields = [
-            "id",
-            "word",
-            "custom_translation",
-            "user_hint",
-            "tags",
-            "status",
-            "selected_translation",
-            "created_at",
-            "updated_at",
-        ]
+class SelectedBaseTranslationOut(Schema):
+    id: int
+    value: str
+    is_card_primary: bool
+
+
+class UserWordTranslationSelectionOut(Schema):
+    target_language: str
+    base_translations: list[SelectedBaseTranslationOut]
+    custom_translation: str | None
+    custom_is_card_primary: bool
+
+
+class UserWordOut(Schema):
+    id: int
+    word_id: int
+    user_hint: str | None
+    tags: list[int]
+    status: str
+    translation_selection: UserWordTranslationSelectionOut
+    created_at: datetime
+    updated_at: datetime

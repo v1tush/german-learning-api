@@ -104,6 +104,7 @@ def get_word_translations(word_id: int, target_language: str):
 def serialize_translations(translations):
     return [
         {
+            "id": translation.pk,
             "value": translation.translation,
             "is_main": translation.is_main,
         }

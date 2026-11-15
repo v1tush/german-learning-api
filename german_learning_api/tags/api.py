@@ -1,8 +1,9 @@
+from authentication.auth import BotAuth, GlobalAuth
 from django.db import IntegrityError, transaction
 from ninja import Router
 from ninja.errors import HttpError
+from words.models import UserWord
 
-from authentication.auth import GlobalAuth, BotAuth
 from tags.models import UserTag
 from tags.schemas import (
     ErrorOut,
@@ -14,11 +15,10 @@ from tags.schemas import (
     TagWordsIn,
     TagWordsRemovedOut,
 )
-from tags.utils import get_user_tag, serialize_user_word, get_user_words, validate_user_word_ids
-from words.models import UserWord
-
+from tags.utils import get_user_tag, get_user_words, serialize_user_word, validate_user_word_ids
 
 tags_router = Router(auth=[GlobalAuth(), BotAuth()])
+
 
 @tags_router.post(
     "/",
@@ -130,13 +130,11 @@ def get_tag_words(request, tag_id: int):
             tags=tag,
         )
         .select_related("word")
+        .prefetch_related("translations")
         .order_by("id")
     )
 
-    return 200, [
-        serialize_user_word(user_word)
-        for user_word in user_words
-    ]
+    return 200, [serialize_user_word(user_word, request.auth.current_using_language) for user_word in user_words]
 
 
 @tags_router.post(
@@ -207,4 +205,3 @@ def remove_words_from_tag(
         "removed": len(existing_ids),
         "not_in_tag": len(user_word_ids - existing_ids),
     }
-

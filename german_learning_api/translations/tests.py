@@ -45,12 +45,12 @@ class TranslationSuggestionsApiTests(TestCase):
         self.assertEqual(BaseTranslation.objects.filter(word=self.word, target_language="ru").count(), 2)
 
     def test_existing_main_is_reused_without_ai(self):
-        BaseTranslation.objects.create(word=self.word, target_language="ru", translation="идти", is_main=True)
+        saved = BaseTranslation.objects.create(word=self.word, target_language="ru", translation="идти", is_main=True)
         with patch("translations.services.get_translation") as generate:
             response = self.client.post(self.url, **self.auth)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["translations"], [{"value": "идти", "is_main": True}])
+        self.assertEqual(response.json()["translations"], [{"id": saved.pk, "value": "идти", "is_main": True}])
         generate.assert_not_called()
 
     def test_normalized_existing_variant_is_promoted_without_creating_a_duplicate(self):
@@ -76,14 +76,16 @@ class TranslationSuggestionsApiTests(TestCase):
         self.assertTrue(existing.is_main)
 
     def test_untranslatable_word_keeps_existing_variants_without_main(self):
-        BaseTranslation.objects.create(word=self.word, target_language="ru", translation="ходить", is_main=False)
+        saved = BaseTranslation.objects.create(
+            word=self.word, target_language="ru", translation="ходить", is_main=False
+        )
         ai_result = TranslationResponse(word="gehen", part_of_speech="verb", status="not_found", translations=[])
         with patch("translations.services.get_translation", return_value=ai_result):
             response = self.client.post(self.url, **self.auth)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "not_found")
-        self.assertEqual(response.json()["translations"], [{"value": "ходить", "is_main": False}])
+        self.assertEqual(response.json()["translations"], [{"id": saved.pk, "value": "ходить", "is_main": False}])
         self.assertFalse(BaseTranslation.objects.filter(word=self.word, target_language="ru", is_main=True).exists())
 
     def test_provider_failure_returns_bad_gateway_without_saving(self):

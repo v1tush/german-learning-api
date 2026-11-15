@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from tags.models import UserTag
 from translations.choices import WordStatusChoices
-from translations.models import BaseTranslation
 
 from words.choices import InflectionTypeChoices, LanguageChoices, PartOfSpeechChoices
 
@@ -49,20 +48,51 @@ class WordInflection(TimeStampedModel):
 class UserWord(TimeStampedModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="vocabulary", db_index=False)
     word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name="user_links", db_index=False)
-    custom_translation = models.CharField(max_length=500, blank=True, null=True)
     user_hint = models.TextField(blank=True, null=True)
     tags = models.ManyToManyField(UserTag, blank=True, related_name="user_words")
     status = models.CharField(max_length=20, choices=WordStatusChoices, default=WordStatusChoices.LEARNING)
-    selected_translation = models.ForeignKey(
-        BaseTranslation,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="user_selections",
-    )
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "word"], name="unique_user_word")]
         indexes = [models.Index(fields=["word"], name="userword_word_idx")]
         verbose_name = "User Word"
         verbose_name_plural = "User Words"
+
+
+class UserWordTranslation(TimeStampedModel):
+    user_word = models.ForeignKey(UserWord, on_delete=models.CASCADE, related_name="translations")
+    target_language = models.CharField(max_length=10, choices=LanguageChoices)
+    base_translation = models.ForeignKey(
+        "translations.BaseTranslation",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="user_selections",
+    )
+    custom_translation = models.CharField(max_length=500, null=True, blank=True)
+    is_card_primary = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(base_translation__isnull=False, custom_translation__isnull=True)
+                    | (
+                        models.Q(base_translation__isnull=True, custom_translation__isnull=False)
+                        & ~models.Q(custom_translation="")
+                    )
+                ),
+                name="user_word_translation_one_source",
+            ),
+            models.UniqueConstraint(
+                fields=["user_word", "base_translation"],
+                condition=models.Q(base_translation__isnull=False),
+                name="unique_user_word_base_translation",
+            ),
+            models.UniqueConstraint(
+                fields=["user_word", "target_language"],
+                condition=models.Q(base_translation__isnull=True),
+                name="unique_user_word_custom_per_language",
+            ),
+        ]
+        ordering = ["id"]

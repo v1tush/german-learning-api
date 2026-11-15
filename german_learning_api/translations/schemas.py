@@ -6,15 +6,24 @@ class Translation(Schema):
     is_main: bool
 
 
-class BaseTranslationsResponse(Schema):
+class TranslationResponse(Schema):
     word: str
     part_of_speech: str
+    status: str
     translations: list[Translation]
 
 
-class TranslationsListResponse(BaseTranslationsResponse):
-    pass
+class SavedTranslation(Schema):
+    id: int
+    value: str
+    is_main: bool
 
 
-class TranslationResponse(BaseTranslationsResponse):
+class TranslationsListResponse(Schema):
+    word: str
+    part_of_speech: str
+    translations: list[SavedTranslation]
+
+
+class TranslationSuggestionsResponse(TranslationsListResponse):
     status: str

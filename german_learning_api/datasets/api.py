@@ -3,6 +3,7 @@ from django.db import IntegrityError, transaction
 from django.db.models.deletion import RestrictedError
 from ninja import Router
 from ninja.errors import HttpError
+from words.services import get_custom_translation
 
 from datasets.models import UserDataset
 from datasets.schemas import DatasetCreateIn, DatasetOut, DatasetUpdateIn, DatasetWordOut, ErrorOut
@@ -28,14 +29,14 @@ def serialize_dataset(dataset: UserDataset) -> dict:
     }
 
 
-def serialize_dataset_word(user_word) -> dict:
+def serialize_dataset_word(user_word, target_language: str) -> dict:
     return {
         "id": user_word.id,
         "word_id": user_word.word_id,
         "word": user_word.word.word,
         "language": user_word.word.language,
         "part_of_speech": user_word.word.part_of_speech,
-        "custom_translation": user_word.custom_translation,
+        "custom_translation": get_custom_translation(user_word, target_language),
         "user_hint": user_word.user_hint,
         "status": user_word.status,
     }
@@ -76,8 +77,8 @@ def get_dataset(request, dataset_id: int):
 @datasets_router.get("/{dataset_id}/words", response={200: list[DatasetWordOut], 404: ErrorOut})
 def list_dataset_words(request, dataset_id: int):
     dataset = get_user_dataset(request.auth, dataset_id)
-    words = get_dataset_words(dataset).select_related("word").order_by("id")
-    return [serialize_dataset_word(word) for word in words]
+    words = get_dataset_words(dataset).select_related("word").prefetch_related("translations").order_by("id")
+    return [serialize_dataset_word(word, request.auth.current_using_language) for word in words]
 
 
 @datasets_router.patch("/{dataset_id}", response={200: DatasetOut, 400: ErrorOut, 404: ErrorOut, 409: ErrorOut})

@@ -4,7 +4,7 @@ from authentication.auth import BotAuth, GlobalAuth
 from ninja import Router
 from ninja.errors import HttpError
 
-from translations.schemas import TranslationResponse, TranslationsListResponse
+from translations.schemas import TranslationsListResponse, TranslationSuggestionsResponse
 from translations.services import (
     TranslationUnavailableError,
     ensure_main_translation,
@@ -36,7 +36,7 @@ def get_translations(request, word_id: int):
 
 @translations_router.post(
     "/words/{word_id}/translation-suggestions",
-    response=TranslationResponse,
+    response=TranslationSuggestionsResponse,
 )
 def get_translation_suggestions(request, word_id: int):
     target_language = request.auth.current_using_language

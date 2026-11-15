@@ -1,7 +1,8 @@
 from ninja.errors import HttpError
+from words.models import UserWord
+from words.services import get_custom_translation
 
 from tags.models import UserTag
-from words.models import UserWord
 
 
 def get_user_tag(request, tag_id: int) -> UserTag:
@@ -16,14 +17,14 @@ def get_user_tag(request, tag_id: int) -> UserTag:
     return tag
 
 
-def serialize_user_word(user_word: UserWord) -> dict:
+def serialize_user_word(user_word: UserWord, target_language: str) -> dict:
     return {
         "id": user_word.id,
         "word_id": user_word.word_id,
         "word": user_word.word.word,
         "language": user_word.word.language,
         "part_of_speech": user_word.word.part_of_speech,
-        "custom_translation": user_word.custom_translation,
+        "custom_translation": get_custom_translation(user_word, target_language),
         "user_hint": user_word.user_hint,
         "status": user_word.status,
     }
@@ -48,4 +49,3 @@ def get_user_words(request, user_word_ids: set[int]) -> list[UserWord]:
 def validate_user_word_ids(user_word_ids: set[int]) -> None:
     if not user_word_ids:
         raise HttpError(400, "user_word_ids_required")
-
