@@ -2,11 +2,11 @@
 
 A Django Ninja API for learning German vocabulary. It manages a shared word catalogue, personal word lists and tags, datasets, translations, study schedules, review cards, and site notifications. PostgreSQL stores the data; Redis carries Celery tasks; Celery Beat and a worker run scheduled reviews. Translation suggestions can use Yandex Cloud AI.
 
-The repository contains the API and the server-side Telegram linking flow. A Telegram bot and delivery of study words through Telegram are not implemented yet.
+The repository also contains Wozzi, an aiogram Telegram bot for account onboarding, adding and browsing saved words, browsing datasets and schedules, and profile editing. Delivery of study words through Telegram is not implemented yet.
 
 ## Run with Docker Compose
 
-Docker Compose runs PostgreSQL, Redis, the Django development server, a Celery worker, and Celery Beat. The web server, migration job, worker, and Beat all use the same image built from the root `Dockerfile`; Redis uses the official `redis:alpine` image. Run these commands from the repository root:
+Docker Compose runs PostgreSQL, Redis, the Django development server, Wozzi, a Celery worker, and Celery Beat. The `migrate` service builds `german-learning-api:local` once from the root `Dockerfile`; `web`, `bot`, `worker`, and `beat` reuse that local image. Redis uses the official `redis:alpine` image. Run these commands from the repository root:
 
 ```sh
 # If .env does not already exist, copy .env.example to .env.
@@ -15,15 +15,15 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-The one-off `migrate` service applies database migrations before `web`, `worker`, and `beat` start. After later schema changes, rebuild with `docker compose up --build -d` to rerun it. API routes are under `http://localhost:8000/api/`, with interactive OpenAPI documentation at <http://localhost:8000/api/docs>. The Django admin is at <http://localhost:8000/admin/>. To create an admin account, run:
+The one-off `migrate` service applies database migrations before `web`, `bot`, `worker`, and `beat` start. After later schema changes, rebuild with `docker compose up --build -d` to rerun it. API routes are under `http://localhost:8000/api/`, with interactive OpenAPI documentation at <http://localhost:8000/api/docs>. The Django admin is at <http://localhost:8000/admin/>. To create an admin account, run:
 
 ```sh
 docker compose exec web python manage.py createsuperuser
 ```
 
-Use `docker compose logs -f web worker beat` to inspect the application processes and `docker compose down` to stop them. The Compose stack is intended for development: `web` uses Django's `runserver` and binds to the host's loopback interface. Keep only one Beat instance running so each schedule is dispatched once per minute. PostgreSQL, Redis, and uploaded media use persistent Docker volumes.
+Use `docker compose logs -f web bot worker beat` to inspect the application processes and `docker compose down` to stop them. The Compose stack is intended for development: `web` uses Django's `runserver` and binds to the host's loopback interface. Keep only one Beat instance running so each schedule is dispatched once per minute. PostgreSQL, Redis, and uploaded media use persistent Docker volumes.
 
-Compose services are named `web`, `worker`, `beat`, `migrate`, `redis`, and `db`. Inside Compose, `DB_HOST` is set to `db` and `CELERY_BROKER_URL` is set to `redis://redis:6379/0`; local processes can use the host and broker values in `.env` instead. Single-quote literal `$NAME` sequences in `.env` so Compose preserves them. Avoid `${NAME}` in secrets: `python-dotenv`, which parses `.env` for `environs`, expands that syntax even inside single quotes.
+Compose services are named `web`, `bot`, `worker`, `beat`, `migrate`, `redis`, and `db`. Inside Compose, `DB_HOST` is set to `db`, `CELERY_BROKER_URL` is set to `redis://redis:6379/0`, and Wozzi calls `http://web:8000/api`; local processes can use the host values in `.env` instead. Single-quote literal `$NAME` sequences in `.env` so Compose preserves them. Avoid `${NAME}` in secrets: `python-dotenv`, which parses `.env` for `environs`, expands that syntax even inside single quotes.
 
 ## Configuration
 
@@ -37,6 +37,9 @@ Copy `.env.example` to `.env` and set the values before starting Django. The pro
 | `JWT_SECRET_KEY` | Secret used to sign access and refresh JWTs; use a different long random value. |
 | `ALGORITHMS` | Comma-separated allowed JWT algorithms, such as `HS256`. |
 | `TG_BOT_AUTH_KEY` | Shared API key for trusted Telegram bot requests. |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot API token used by Wozzi. |
+| `WOZZI_API_BASE_URL` | Base URL of Django's `/api` routes, reachable from the bot process. |
+| `WOZZI_FSM_REDIS_URL` | Redis database for bot conversation state; use a separate database from Celery. |
 | `YANDEX_CLOUD_FOLDER`, `YANDEX_CLOUD_API_KEY`, `YANDEX_CLOUD_MODEL` | Yandex Cloud AI configuration for translation generation. |
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | PostgreSQL connection settings. Compose provides the database host. |
 | `CELERY_BROKER_URL` | Redis URL for Celery. Compose provides its internal Redis URL. |
@@ -69,6 +72,8 @@ uv run celery -A german_learning_api worker --loglevel=info
 uv run celery -A german_learning_api beat --loglevel=info
 ```
 
+To start Wozzi locally in another terminal, run `uv run python -m telegram_bot.main` from `german_learning_api`. It needs the API, Redis, `TELEGRAM_BOT_TOKEN`, and `TG_BOT_AUTH_KEY`.
+
 Celery does not officially support running workers directly on Windows; use Docker or WSL there. Beat creates a local `celerybeat-schedule` state file, which is ignored by Git.
 
 ## Tests and checks
@@ -78,12 +83,14 @@ The Django test suite uses a PostgreSQL test database. From the repository root,
 ```sh
 cd german_learning_api
 uv run python manage.py test
+uv run python -m unittest telegram_bot.tests
 ```
 
 With Compose running, use:
 
 ```sh
 docker compose exec web python manage.py test
+docker compose exec bot python -m unittest telegram_bot.tests
 ```
 
 Run the configured linter from the repository root with `uv run ruff check .`.
@@ -98,7 +105,7 @@ The hook runs `ruff check --fix` and then `ruff format` on staged Python files. 
 
 ## Authentication and API routes
 
-The API is mounted under `/api/`. `POST /api/authentication/register` and `POST /api/authentication/login` return an access token and set an HTTP-only refresh cookie. Send the access token as `Authorization: Bearer <access_token>` on user routes. `POST /api/authentication/refresh` rotates the refresh token; `POST /api/authentication/logout` revokes it. `GET /api/users/me/` returns the signed-in user's profile.
+The API is mounted under `/api/`. `POST /api/authentication/register` and `POST /api/authentication/login` return an access token and set an HTTP-only refresh cookie. Send the access token as `Authorization: Bearer <access_token>` on user routes. `POST /api/authentication/refresh` rotates the refresh token; `POST /api/authentication/logout` revokes it. `GET /api/users/me/` returns the signed-in user's profile. `PATCH /api/users/me/` updates the username, email, interface language, and learning language. `POST /api/users/me/avatar` uploads a JPEG, PNG, or WebP avatar as multipart field `avatar`; authenticated `GET /api/users/me/avatar` returns the image, and `DELETE /api/users/me/avatar` removes it.
 
 Most personal resources also accept bot authentication with `X-API-Key` and `X-Telegram-ID` after the Telegram account has been linked. The site notification routes require a user access token. The interactive API documentation lists the full request and response schemas.
 
@@ -112,11 +119,29 @@ Most personal resources also accept bot authentication with `X-API-Key` and `X-T
 
 The public catalogue page route requires `sort` (`id` or `popular`) and a one-based `page` number. It returns at most 100 words with `page`, `sort`, `page_size`, and `has_next`. `popular` orders by the current number of users who added a word, then by ascending ID. An out-of-range page returns an empty `words` list. The old `GET /api/words` list route is no longer available.
 
-### Telegram account linking
+### Wozzi account onboarding and Telegram linking
 
-A signed-in site user calls `POST /api/users/me/telegram-link` with an access token. The response contains a one-use `token` and an `expires_at` timestamp ten minutes in the future. Calling it again invalidates the previous token. A client can pass the token to a future bot using `https://t.me/<bot_username>?start=<token>`.
+In a private chat, `/start` uses the Telegram sender's `language_code` as the initial interface language when it is Russian, English, or German. For other codes it asks the user to choose. The guest welcome screen offers account creation, account linking, an interface-language switch, and support. Once an account is linked, its saved interface language takes precedence. `/start` and `/menu` open a separate main menu with words, datasets, schedules, account, and support. Words can be added and browsed; datasets and schedules are browse-only, and the bot does not yet send study cards. Account opens a photo message with the saved avatar (or a generated initial), profile details, an editing prompt, the editing buttons, and a main-menu button. Saving changes or cancelling an edit returns to that screen. Support opens a chat with `@v1tush` with the Telegram user ID in a prepared draft; the user chooses whether to send it. `/settings` remains a command shortcut to the account screen, `/help` explains the available actions, and `/cancel` leaves the current form for its parent screen. The linking screen explains how to use a personal link without sending users to the placeholder `wozzi.com` site.
 
-After receiving `/start <token>` in a private chat, the bot should call `POST /api/users/telegram-link/confirm` with `{"token": "..."}`, `X-API-Key` containing the bot's shared key, and `X-Telegram-ID` containing the message sender's Telegram ID. This is the only request that writes a user's `telegram_id`; a site client cannot assign an arbitrary ID. Expired or used tokens, and Telegram IDs linked to another user, are rejected. Once linked, bot authentication resolves the user by `X-Telegram-ID`; the current ID is visible at `GET /api/users/me/`.
+For a new user, the bot asks for a username and learning language, then calls `POST /api/users/telegram-register` with its `X-API-Key` and the actual Telegram sender's ID in `X-Telegram-ID`. The API creates an already linked user with an unusable password. Bot-created accounts cannot sign in to the website with a password until a separate password setup or Telegram sign-in flow is built. The bot can then edit the profile and upload or remove the avatar through the user API using `aiohttp`; it never connects to the ORM directly. FSM state lives in Redis so restarts do not discard an in-progress form.
+
+A signed-in site user calls `POST /api/users/me/telegram-link` with an access token. The response contains a one-use `token` and an `expires_at` timestamp ten minutes in the future. Calling it again invalidates the previous token. A client passes the token to the bot using `https://t.me/<bot_username>?start=<token>`.
+
+After receiving `/start <token>` in a private chat, the bot calls `POST /api/users/telegram-link/confirm` with `{"token": "..."}`, `X-API-Key` containing the bot's shared key, and `X-Telegram-ID` containing the message sender's Telegram ID. The site client cannot assign an arbitrary Telegram ID. Expired or used tokens, and Telegram IDs linked to another user, are rejected. Once linked, bot authentication resolves the user by `X-Telegram-ID`; the current ID is visible at `GET /api/users/me/`. The website still needs a UI to issue and open the link; the API flow already works.
+
+### Wozzi word entry and vocabulary
+
+`Word.language` is the profile's `current_learning_language`; translation `target_language` is `current_using_language` (for example, German `Haus` → Russian `дом`). `Word`, `BaseTranslation`, and word forms are shared catalogue data. `UserWord` is the personal vocabulary entry; `UserWordTranslation` stores that user's selected shared variants, optional custom variant, and `is_card_primary` flags. One bot form collects these separate records. Changing interface language changes which personal translations are shown without deleting selections for another language.
+
+**Add word** in **My words** starts a Redis-backed FSM: enter a Unicode-normalized word of 1–255 characters with collapsed whitespace; choose noun, verb, adjective, or adverb; choose translations; choose primary translations; review; save. After part of speech, `POST /api/words/` gets or creates the shared Word, then the bot checks for a personal duplicate. An existing entry opens without overwriting its translations. The shared Word is needed to read saved variants from `GET /api/translations/words/{word_id}/translations`; cancelling after this point leaves the shared Word in the catalogue but does not add a personal entry.
+
+Translation buttons toggle at most five saved `BaseTranslation` variants. The user may also type one custom translation of at most 500 characters; the same value cannot be selected as both a saved and custom variant. **Suggest translations** explicitly calls `POST /api/translations/words/{word_id}/translation-suggestions`; it uses saved variants when a main one exists and may call Yandex Cloud AI otherwise. Suggestion failure leaves manual entry available. The inline keyboard keeps translation choices neutral; suggestion and custom-entry actions use Telegram's blue primary style, removal uses red danger, and Next/Save use green success. Save without translation uses blue primary. Telegram clients may adapt the preset colors to their theme. With any translation selected, the next FSM screen lists only those selections, including the custom one, and requires one or two to be marked primary. The confirmation screen marks primary choices with stars. `POST /api/words/me` creates the personal entry with one `translation_selection`; the API enforces the five-plus-one and one-or-two limits. **Save without translation** skips the primary step. `/cancel` and the form's Cancel button return to My words.
+
+My words shows all personal entries by default. **Translated** shows only entries with at least one personally selected shared or custom translation for the current interface language; a shared suggestion alone does not qualify. The read-only detail shows the shared word language, part of speech, available forms, the user's selected translations (stars mark primary; the custom one is labelled), status, and hint. Forms are read through `GET /api/words/{word_id}/inflections`; regular users cannot change shared forms through the bot. Transcription exists in `WordProperties` but is not exposed by the current API or detail screen.
+
+The future Quizlet-style Telegram card should reveal the one or two personally selected primary translations, then offer **Show more translations** only for that user's remaining selections. The current `ReviewCardOut` still returns one `answer` and can fall back to the shared main translation; extend its response and translation-card eligibility before implementing this card UI. A word without a personal translation stays in My words, but should not enter that future translation practice. Tags are a separate future section from datasets; adding a personal word to a personal tag should work both from the word and from the tag, with either action updating the same relation and any dataset that uses that tag.
+
+The word detail offers a red **Delete word** action. It requires a confirmation in the bot's FSM, calls DELETE /api/words/me/{user_word_id}, and returns to the same list filter and page with a notice. This deletes the user's personal entry and its selected translations, not the shared Word, shared translations, or other users' entries. Historical schedule items keep their records with a null word reference. Deleting a personal entry does not clean up a shared Word created before the personal save.
 
 ### Translations and word forms
 

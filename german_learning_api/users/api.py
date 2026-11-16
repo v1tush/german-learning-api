@@ -1,3 +1,4 @@
+from mimetypes import guess_type
 from uuid import uuid4
 
 from authentication.auth import BotAuth, BotServiceAuth, GlobalAuth
@@ -7,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse
 from ninja import File, Router
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
@@ -98,6 +99,16 @@ def upload_avatar(request, avatar: File[UploadedFile]):
     user = request.auth
     user.avatar.save(processed.name, processed, save=True)
     return user
+
+
+@me_router.get("/avatar")
+def get_avatar(request):
+    avatar = request.auth.avatar
+    if not avatar:
+        raise HttpError(404, "avatar_not_found")
+    response = FileResponse(avatar.open("rb"), content_type=guess_type(avatar.name)[0] or "application/octet-stream")
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @me_router.delete("/avatar", response=UserMeOut)

@@ -1,12 +1,14 @@
 x-app: &app
   image: german-learning-api:local
-  build: .
-  pull_policy: build
+  pull_policy: never
   env_file: .env
   environment:
     DB_HOST: db
     DB_PORT: "5432"
     CELERY_BROKER_URL: redis://redis:6379/0
+    WOZZI_API_BASE_URL: http://web:8000/api
+    WOZZI_FSM_REDIS_URL: redis://redis:6379/1
+    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost},web
 
 services:
   db:
@@ -36,6 +38,8 @@ services:
 
   migrate:
     <<: *app
+    build: .
+    pull_policy: build
     command: ["python", "manage.py", "migrate", "--noinput"]
     depends_on:
       db:
@@ -57,6 +61,11 @@ services:
   bot:
     <<: *app
     command: ["python", "-m", "telegram_bot.main"]
+    depends_on:
+      web:
+        condition: service_started
+      redis:
+        condition: service_healthy
 
   worker:
     <<: *app
