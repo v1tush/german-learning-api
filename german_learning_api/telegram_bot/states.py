@@ -28,3 +28,11 @@ class WordAddition(StatesGroup):
 
 class WordDeletion(StatesGroup):
     confirmation = State()
+
+
+class TagCreation(StatesGroup):
+    name = State()
+
+
+class TagDeletion(StatesGroup):
+    confirmation = State()

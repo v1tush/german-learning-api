@@ -13,9 +13,9 @@ from telegram_bot.texts import locale_from_telegram, t
 def main_menu_buttons(locale: str) -> InlineKeyboardMarkup:
     return keyboard(
         [
-            [(t(locale, "words_button"), "words:open:0"), (t(locale, "datasets_button"), "datasets:open:0")],
-            [(t(locale, "schedules_button"), "schedules:open:0"), (t(locale, "account_button"), "profile:open")],
-            [(t(locale, "support_button"), "support:open")],
+            [(t(locale, "words_button"), "words:open:0"), (t(locale, "tags_button"), "tags:open:0")],
+            [(t(locale, "datasets_button"), "datasets:open:0"), (t(locale, "schedules_button"), "schedules:open:0")],
+            [(t(locale, "account_button"), "profile:open"), (t(locale, "support_button"), "support:open")],
         ]
     )
 

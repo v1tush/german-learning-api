@@ -91,6 +91,7 @@ async def show_word_detail(
         user_word = await api.user_word(target.from_user.id, user_word_id)
         word = await api.word(target.from_user.id, user_word["word_id"])
         inflections = await api.word_inflections(target.from_user.id, user_word["word_id"])
+        tags = await api.tags(target.from_user.id)
     except ApiError, ApiUnavailable:
         await show_words(target, state, api, page, only_translated=only_translated)
         return
@@ -112,6 +113,10 @@ async def show_word_detail(
         status=t(locale, f"status_{user_word['status']}"),
         hint=escape(user_word.get("user_hint") or t(locale, "empty")),
     )
+    selected = set(user_word.get("tags") or [])
+    names = [escape(tag["name"]) for tag in tags if tag["id"] in selected]
+    shown = ", ".join(names[:3]) + (f" +{len(names) - 3}" if len(names) > 3 else "")
+    body += "\n\n" + t(locale, "word_tags", tags=shown or t(locale, "word_tags_empty"))
     if notice:
         body = f"{escape(notice)}\n\n{body}"
     back = "words:translated" if only_translated else "words:open"
@@ -127,6 +132,12 @@ async def show_word_detail(
                         t(locale, "word_delete"),
                         f"words:delete:ask:{user_word_id}:{page}:{mode}",
                         ButtonStyle.DANGER,
+                    )
+                ],
+                [
+                    (
+                        t(locale, "word_manage_tags"),
+                        f"tags:word:{user_word_id}:{page}:{'t' if only_translated else 'a'}:0",
                     )
                 ],
                 [(t(locale, "main_menu_button"), "menu:open")],

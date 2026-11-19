@@ -75,3 +75,26 @@ class ApiClientTests(IsolatedAsyncioTestCase):
             "http://web:8000/api/words/me/9",
             headers={"X-API-Key": "secret", "X-Telegram-ID": "42"},
         )
+
+    async def test_tag_membership_uses_existing_tag_routes(self):
+        response = SimpleNamespace(status=200, json=AsyncMock(return_value={"added": 1, "already_in_tag": 0}))
+        context = AsyncMock()
+        context.__aenter__.return_value = response
+        session = SimpleNamespace(request=Mock(return_value=context))
+        api = WozziApi("http://web:8000/api", "secret", session)
+        headers = {"X-API-Key": "secret", "X-Telegram-ID": "42"}
+
+        await api.add_tag_word(42, 9, 3)
+        session.request.assert_called_with(
+            "POST",
+            "http://web:8000/api/tags/9/words",
+            headers=headers,
+            json={"user_word_ids": [3]},
+        )
+        await api.remove_tag_word(42, 9, 3)
+        session.request.assert_called_with(
+            "DELETE",
+            "http://web:8000/api/tags/9/words",
+            headers=headers,
+            json={"user_word_ids": [3]},
+        )

@@ -15,6 +15,8 @@ from telegram_bot.handlers import (
     profile,
     profile_avatar,
     profile_text,
+    tag_membership,
+    tags,
     word_addition,
     word_deletion,
     word_primary,
@@ -23,6 +25,8 @@ from telegram_bot.handlers import (
 from telegram_bot.screens import datasets, menu, schedules, words
 from telegram_bot.screens import onboarding as onboarding_screen
 from telegram_bot.screens import profile as profile_screen
+from telegram_bot.screens import tag_membership as tag_membership_screen
+from telegram_bot.screens import tags as tags_screen
 from telegram_bot.screens import word_addition as word_addition_screen
 from telegram_bot.screens import word_deletion as word_deletion_screen
 
@@ -63,6 +67,13 @@ class BotFlowTests(IsolatedAsyncioTestCase):
             word_translations=AsyncMock(return_value={"translations": []}),
             suggest_translations=AsyncMock(return_value={"status": "not_found", "translations": []}),
             word_inflections=AsyncMock(return_value=[]),
+            tags=AsyncMock(return_value=[]),
+            tag=AsyncMock(),
+            tag_words=AsyncMock(return_value=[]),
+            create_tag=AsyncMock(),
+            delete_tag=AsyncMock(),
+            add_tag_word=AsyncMock(),
+            remove_tag_word=AsyncMock(),
             datasets=AsyncMock(return_value=[]),
             dataset=AsyncMock(),
             dataset_words=AsyncMock(return_value=[]),
@@ -80,6 +91,8 @@ class BotFlowTests(IsolatedAsyncioTestCase):
             profile,
             profile_avatar,
             profile_text,
+            tag_membership,
+            tags,
             word_addition,
             word_deletion,
             word_primary,
@@ -89,6 +102,8 @@ class BotFlowTests(IsolatedAsyncioTestCase):
             onboarding_screen,
             profile_screen,
             schedules,
+            tag_membership_screen,
+            tags_screen,
             words,
             word_addition_screen,
             word_deletion_screen,

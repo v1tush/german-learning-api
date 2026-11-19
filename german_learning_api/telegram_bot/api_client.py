@@ -122,6 +122,29 @@ class WozziApi:
     async def word_inflections(self, telegram_id: int, word_id: int) -> list[dict]:
         return await self._request("GET", f"/words/{word_id}/inflections", telegram_id, expected_type=list)
 
+    async def tags(self, telegram_id: int) -> list[dict]:
+        return await self._request("GET", "/tags/", telegram_id, expected_type=list)
+
+    async def tag(self, telegram_id: int, tag_id: int) -> dict:
+        return await self._request("GET", f"/tags/{tag_id}", telegram_id)
+
+    async def tag_words(self, telegram_id: int, tag_id: int) -> list[dict]:
+        return await self._request("GET", f"/tags/{tag_id}/words", telegram_id, expected_type=list)
+
+    async def create_tag(self, telegram_id: int, name: str) -> dict:
+        return await self._request("POST", "/tags/", telegram_id, json={"name": name})
+
+    async def delete_tag(self, telegram_id: int, tag_id: int) -> None:
+        await self._request("DELETE", f"/tags/{tag_id}", telegram_id, expected_type=type(None))
+
+    async def add_tag_word(self, telegram_id: int, tag_id: int, user_word_id: int) -> dict:
+        return await self._request("POST", f"/tags/{tag_id}/words", telegram_id, json={"user_word_ids": [user_word_id]})
+
+    async def remove_tag_word(self, telegram_id: int, tag_id: int, user_word_id: int) -> dict:
+        return await self._request(
+            "DELETE", f"/tags/{tag_id}/words", telegram_id, json={"user_word_ids": [user_word_id]}
+        )
+
     async def datasets(self, telegram_id: int) -> list[dict]:
         return await self._request("GET", "/datasets/", telegram_id, expected_type=list)
 

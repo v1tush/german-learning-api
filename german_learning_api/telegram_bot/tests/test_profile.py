@@ -45,9 +45,9 @@ class ProfileTests(BotFlowTests):
         self.assertEqual(
             [[button.callback_data for button in row] for row in self.shown_buttons()],
             [
-                ["words:open:0", "datasets:open:0"],
-                ["schedules:open:0", "profile:open"],
-                ["support:open"],
+                ["words:open:0", "tags:open:0"],
+                ["datasets:open:0", "schedules:open:0"],
+                ["profile:open", "support:open"],
             ],
         )
 

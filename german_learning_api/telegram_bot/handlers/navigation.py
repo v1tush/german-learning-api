@@ -8,8 +8,10 @@ from telegram_bot.common import current_locale, keyboard, reset_navigation_state
 from telegram_bot.screens.menu import home, show_support
 from telegram_bot.screens.onboarding import show_onboarding
 from telegram_bot.screens.profile import show_account
+from telegram_bot.screens.tag_membership import show_word_tag_picker
+from telegram_bot.screens.tags import show_tag_detail, show_tags
 from telegram_bot.screens.words import show_words
-from telegram_bot.states import ProfileEdit, Registration, WordAddition
+from telegram_bot.states import ProfileEdit, Registration, TagCreation, TagDeletion, WordAddition
 from telegram_bot.texts import locale_from_telegram, t
 
 router = Router()
@@ -70,6 +72,7 @@ async def help_command(message: Message, state: FSMContext) -> None:
 @router.message(Command("cancel"))
 async def cancel(message: Message, state: FSMContext, api: WozziApi) -> None:
     active = await state.get_state()
+    data = await state.get_data()
     locale = await current_locale(message, state)
     await reset_navigation_state(state)
     if active in {
@@ -91,6 +94,15 @@ async def cancel(message: Message, state: FSMContext, api: WozziApi) -> None:
         await show_account(message, state, api)
     elif active in {item.state for item in WordAddition.__states__}:
         await show_words(message, state, api, 0)
+    elif active == TagCreation.name.state:
+        if data.get("tag_origin") == "word":
+            await show_word_tag_picker(
+                message, state, api, data["tag_user_word_id"], data["tag_word_page"], data["tag_mode"], data["tag_page"]
+            )
+        else:
+            await show_tags(message, state, api, data.get("tag_page", 0))
+    elif active == TagDeletion.confirmation.state:
+        await show_tag_detail(message, state, api, data["tag_id"], data["tag_detail_page"], data["tag_page"])
     else:
         await home(message, state, api)
 
