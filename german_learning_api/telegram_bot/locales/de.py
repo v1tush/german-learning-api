@@ -1,3 +1,5 @@
+from telegram_bot.locales.datasets_de import TEXTS as DATASET_TEXTS
+
 TEXTS = {
     "welcome": "👋 <b>Willkommen bei Wozzi</b>\n\nSammle Wörter, fasse sie in Sets zusammen und plane deine Wiederholungen.\n\nErstelle ein Konto oder verknüpfe ein bestehendes 👇",
     "main_menu": "👋 <b>Hallo, {username}! Willkommen bei Wozzi</b>\n\nSammle Wörter, fasse sie in Sets zusammen und plane deine Wiederholungen.\n\nWähle unten einen Bereich 👇",
@@ -129,7 +131,7 @@ TEXTS = {
     "settings_learning": "📚 Lernsprache · {value}",
     "settings_avatar": "🖼 Foto · {value}",
     "menu_button": "Menü öffnen",
-    "help": "ℹ️ <b>Wozzi benutzen</b>\n\nÖffne Meine Wörter, um Wörter hinzuzufügen, Übersetzungen auszuwählen und Tags zu verwalten. Unter Tags kannst du Tags erstellen und Wörter zuordnen. Sets, Lernplan und Konto findest du im Hauptmenü.\n\n/menu — Hauptmenü\n/settings — Konto\n/cancel — aktuelle Aktion verlassen.",
+    "help": "ℹ️ <b>Wozzi benutzen</b>\n\nÖffne Meine Wörter, um Wörter hinzuzufügen, Übersetzungen auszuwählen und Tags zu verwalten. Unter Tags kannst du Tags erstellen und Wörter zuordnen. Unter Sets kannst du Wörter aus Tags mit einzeln hinzugefügten Wörtern kombinieren. Lernplan und Konto findest du im Hauptmenü.\n\n/menu — Hauptmenü\n/settings — Konto\n/cancel — aktuelle Aktion verlassen.",
     "command_start": "Wozzi öffnen",
     "command_menu": "Startbildschirm",
     "command_settings": "Profileinstellungen",
@@ -165,3 +167,4 @@ TEXTS = {
     "stale_action": "Diese Schaltfläche ist veraltet. Öffne das Menü.",
     "already_selected": "Bereits ausgewählt.",
 }
+TEXTS.update(DATASET_TEXTS)

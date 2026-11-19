@@ -1,5 +1,6 @@
 from html import escape
 
+from aiogram.enums import ButtonStyle
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -8,7 +9,9 @@ from telegram_bot.common import current_locale, keyboard, page_navigation, page_
 from telegram_bot.texts import t
 
 
-async def show_datasets(target: Message | CallbackQuery, state: FSMContext, api: WozziApi, requested_page: int) -> None:
+async def show_datasets(
+    target: Message | CallbackQuery, state: FSMContext, api: WozziApi, requested_page: int, notice: str = ""
+) -> None:
     locale = await current_locale(target, state)
     try:
         datasets = await api.datasets(target.from_user.id)
@@ -18,8 +21,11 @@ async def show_datasets(target: Message | CallbackQuery, state: FSMContext, api:
     items, page, pages = page_of(datasets, requested_page)
     rows = [[(short_button_value(item["name"], 36), f"datasets:item:{item['id']}:0:{page}")] for item in items]
     rows += page_navigation("datasets:open", page, pages)
+    rows.append([(t(locale, "dataset_create"), f"datasets:create:{page}", ButtonStyle.SUCCESS)])
     rows.append([(t(locale, "main_menu_button"), "menu:open")])
     body = t(locale, "datasets_title", count=str(len(datasets)), page=str(page + 1), pages=str(pages))
+    if notice:
+        body += f"\n\n{escape(notice)}"
     if not datasets:
         body += f"\n\n{t(locale, 'datasets_empty')}"
     await show(target, body, keyboard(rows))
@@ -32,11 +38,13 @@ async def show_dataset_detail(
     dataset_id: int,
     requested_page: int,
     back_page: int,
+    notice: str = "",
 ) -> None:
     locale = await current_locale(target, state)
     try:
         dataset = await api.dataset(target.from_user.id, dataset_id)
         words = await api.dataset_words(target.from_user.id, dataset_id)
+        tags = await api.tags(target.from_user.id)
     except ApiError, ApiUnavailable:
         await show_datasets(target, state, api, back_page)
         return
@@ -49,11 +57,24 @@ async def show_dataset_detail(
         page=str(page + 1),
         pages=str(pages),
     )
+    selected_tags = set(dataset.get("tags", []))
+    tag_names = [escape(item["name"]) for item in tags if item["id"] in selected_tags]
+    shown_tags = ", ".join(tag_names[:3]) + (f" +{len(tag_names) - 3}" if len(tag_names) > 3 else "")
+    body += "\n\n" + t(
+        locale,
+        "dataset_sources",
+        tags=shown_tags or t(locale, "dataset_none"),
+        extra_count=str(len(dataset.get("extra_words", []))),
+    )
+    if notice:
+        body += f"\n\n{escape(notice)}"
     body += "\n\n" + ("\n".join(f"• {escape(item['word'])}" for item in items) if words else t(locale, "dataset_empty"))
     rows = page_navigation(f"datasets:item:{dataset_id}", page, pages)
     rows = [[(label, f"{data}:{back_page}") for label, data in row] for row in rows]
     rows.extend(
         [
+            [(t(locale, "dataset_edit"), f"datasets:edit:{dataset_id}:{page}:{back_page}")],
+            [(t(locale, "dataset_delete"), f"datasets:delete:ask:{dataset_id}:{page}:{back_page}", ButtonStyle.DANGER)],
             [(t(locale, "back_to_datasets"), f"datasets:open:{back_page}")],
             [(t(locale, "main_menu_button"), "menu:open")],
         ]

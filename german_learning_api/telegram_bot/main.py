@@ -9,6 +9,9 @@ from telegram_bot.api_client import WozziApi
 from telegram_bot.common import bot_commands
 from telegram_bot.handlers import (
     browse,
+    dataset_deletion,
+    dataset_form,
+    dataset_selection,
     fallback,
     navigation,
     onboarding,
@@ -37,6 +40,9 @@ async def main() -> None:
     for module in (
         navigation,
         browse,
+        dataset_form,
+        dataset_selection,
+        dataset_deletion,
         onboarding,
         profile,
         profile_text,

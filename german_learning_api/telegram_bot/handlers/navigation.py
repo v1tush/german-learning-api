@@ -5,13 +5,22 @@ from aiogram.types import CallbackQuery, Message
 
 from telegram_bot.api_client import ApiError, ApiUnavailable, WozziApi
 from telegram_bot.common import current_locale, keyboard, reset_navigation_state, show
+from telegram_bot.screens.datasets import show_dataset_detail, show_datasets
 from telegram_bot.screens.menu import home, show_support
 from telegram_bot.screens.onboarding import show_onboarding
 from telegram_bot.screens.profile import show_account
 from telegram_bot.screens.tag_membership import show_word_tag_picker
 from telegram_bot.screens.tags import show_tag_detail, show_tags
 from telegram_bot.screens.words import show_words
-from telegram_bot.states import ProfileEdit, Registration, TagCreation, TagDeletion, WordAddition
+from telegram_bot.states import (
+    DatasetDeletion,
+    DatasetForm,
+    ProfileEdit,
+    Registration,
+    TagCreation,
+    TagDeletion,
+    WordAddition,
+)
 from telegram_bot.texts import locale_from_telegram, t
 
 router = Router()
@@ -103,6 +112,13 @@ async def cancel(message: Message, state: FSMContext, api: WozziApi) -> None:
             await show_tags(message, state, api, data.get("tag_page", 0))
     elif active == TagDeletion.confirmation.state:
         await show_tag_detail(message, state, api, data["tag_id"], data["tag_detail_page"], data["tag_page"])
+    elif active in {DatasetForm.name.state, DatasetForm.review.state, DatasetDeletion.confirmation.state}:
+        if dataset_id := data.get("dataset_id"):
+            await show_dataset_detail(
+                message, state, api, dataset_id, data["dataset_detail_page"], data["dataset_back_page"]
+            )
+        else:
+            await show_datasets(message, state, api, data.get("dataset_back_page", 0))
     else:
         await home(message, state, api)
 

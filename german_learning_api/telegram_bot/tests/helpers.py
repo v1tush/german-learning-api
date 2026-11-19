@@ -9,6 +9,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from telegram_bot.api_client import ApiError
 from telegram_bot.handlers import (
     browse,
+    dataset_deletion,
+    dataset_form,
+    dataset_selection,
     fallback,
     navigation,
     onboarding,
@@ -22,7 +25,16 @@ from telegram_bot.handlers import (
     word_primary,
     word_translations,
 )
-from telegram_bot.screens import datasets, menu, schedules, words
+from telegram_bot.screens import (
+    dataset_editor,
+    datasets,
+    menu,
+    schedules,
+    words,
+)
+from telegram_bot.screens import (
+    dataset_selection as dataset_selection_screen,
+)
 from telegram_bot.screens import onboarding as onboarding_screen
 from telegram_bot.screens import profile as profile_screen
 from telegram_bot.screens import tag_membership as tag_membership_screen
@@ -77,6 +89,9 @@ class BotFlowTests(IsolatedAsyncioTestCase):
             datasets=AsyncMock(return_value=[]),
             dataset=AsyncMock(),
             dataset_words=AsyncMock(return_value=[]),
+            create_dataset=AsyncMock(),
+            update_dataset=AsyncMock(),
+            delete_dataset=AsyncMock(),
             schedules=AsyncMock(return_value=[]),
             schedule=AsyncMock(),
         )
@@ -85,6 +100,9 @@ class BotFlowTests(IsolatedAsyncioTestCase):
         self.patches = []
         modules = (
             browse,
+            dataset_deletion,
+            dataset_form,
+            dataset_selection,
             fallback,
             navigation,
             onboarding,
@@ -98,6 +116,8 @@ class BotFlowTests(IsolatedAsyncioTestCase):
             word_primary,
             word_translations,
             datasets,
+            dataset_editor,
+            dataset_selection_screen,
             menu,
             onboarding_screen,
             profile_screen,

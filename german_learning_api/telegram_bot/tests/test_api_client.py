@@ -98,3 +98,21 @@ class ApiClientTests(IsolatedAsyncioTestCase):
             headers=headers,
             json={"user_word_ids": [3]},
         )
+
+    async def test_dataset_mutations_use_existing_routes_and_user_word_ids(self):
+        response = SimpleNamespace(status=200, json=AsyncMock(return_value={"id": 9}))
+        context = AsyncMock()
+        context.__aenter__.return_value = response
+        session = SimpleNamespace(request=Mock(return_value=context))
+        api = WozziApi("http://web:8000/api", "secret", session)
+        headers = {"X-API-Key": "secret", "X-Telegram-ID": "42"}
+        payload = {"name": "A1", "tags": [7], "extra_words": [3]}
+
+        await api.create_dataset(42, "A1", [7], [3])
+        session.request.assert_called_with("POST", "http://web:8000/api/datasets/", headers=headers, json=payload)
+        await api.update_dataset(42, 9, "A1", [7], [3])
+        session.request.assert_called_with("PATCH", "http://web:8000/api/datasets/9", headers=headers, json=payload)
+        response.status = 204
+        response.json.return_value = None
+        await api.delete_dataset(42, 9)
+        session.request.assert_called_with("DELETE", "http://web:8000/api/datasets/9", headers=headers)

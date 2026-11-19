@@ -36,3 +36,12 @@ class TagCreation(StatesGroup):
 
 class TagDeletion(StatesGroup):
     confirmation = State()
+
+
+class DatasetForm(StatesGroup):
+    name = State()
+    review = State()
+
+
+class DatasetDeletion(StatesGroup):
+    confirmation = State()

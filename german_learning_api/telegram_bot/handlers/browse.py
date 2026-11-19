@@ -34,12 +34,14 @@ async def open_word_detail(callback: CallbackQuery, state: FSMContext, api: Wozz
 
 @router.callback_query(F.data.startswith("datasets:open:"))
 async def open_datasets(callback: CallbackQuery, state: FSMContext, api: WozziApi) -> None:
+    await reset_navigation_state(state)
     await show_datasets(callback, state, api, int(callback.data.rsplit(":", 1)[-1]))
 
 
 @router.callback_query(F.data.startswith("datasets:item:"))
 async def open_dataset_detail(callback: CallbackQuery, state: FSMContext, api: WozziApi) -> None:
     _, _, dataset_id, page, back_page = callback.data.split(":")
+    await reset_navigation_state(state)
     await show_dataset_detail(callback, state, api, int(dataset_id), int(page), int(back_page))
 
 

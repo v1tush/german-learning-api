@@ -38,6 +38,7 @@ class BrowsingTests(BotFlowTests):
         self.api.dataset_words.return_value = [{"word": "Haus"}]
         await browse.open_datasets(update(data="datasets:open:0"), self.state, self.api)
         self.assertEqual(self.shown_buttons()[0][0].callback_data, "datasets:item:9:0:0")
+        self.assertEqual(self.shown_buttons()[1][0].callback_data, "datasets:create:0")
         await browse.open_dataset_detail(update(data="datasets:item:9:0:0"), self.state, self.api)
         self.assertIn("Основы", self.show.call_args.args[1])
         self.assertIn("Haus", self.show.call_args.args[1])
@@ -66,7 +67,9 @@ class BrowsingTests(BotFlowTests):
         await browse.open_dataset_detail(update(data="datasets:item:9:1:2"), self.state, self.api)
         self.assertIn("Wort 7", self.show.call_args.args[1])
         self.assertEqual(self.shown_buttons()[0][0].callback_data, "datasets:item:9:0:2")
-        self.assertEqual(self.shown_buttons()[1][0].callback_data, "datasets:open:2")
+        self.assertEqual(self.shown_buttons()[1][0].callback_data, "datasets:edit:9:1:2")
+        self.assertEqual(self.shown_buttons()[2][0].callback_data, "datasets:delete:ask:9:1:2")
+        self.assertEqual(self.shown_buttons()[3][0].callback_data, "datasets:open:2")
 
     async def test_word_detail_shows_only_personal_translations_and_read_only_forms(self):
         self.api.user_word.return_value = {

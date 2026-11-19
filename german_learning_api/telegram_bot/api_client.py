@@ -154,6 +154,24 @@ class WozziApi:
     async def dataset(self, telegram_id: int, dataset_id: int) -> dict:
         return await self._request("GET", f"/datasets/{dataset_id}", telegram_id)
 
+    async def create_dataset(self, telegram_id: int, name: str, tags: list[int], extra_words: list[int]) -> dict:
+        return await self._request(
+            "POST", "/datasets/", telegram_id, json={"name": name, "tags": tags, "extra_words": extra_words}
+        )
+
+    async def update_dataset(
+        self, telegram_id: int, dataset_id: int, name: str, tags: list[int], extra_words: list[int]
+    ) -> dict:
+        return await self._request(
+            "PATCH",
+            f"/datasets/{dataset_id}",
+            telegram_id,
+            json={"name": name, "tags": tags, "extra_words": extra_words},
+        )
+
+    async def delete_dataset(self, telegram_id: int, dataset_id: int) -> None:
+        await self._request("DELETE", f"/datasets/{dataset_id}", telegram_id, expected_type=type(None))
+
     async def schedules(self, telegram_id: int) -> list[dict]:
         return await self._request("GET", "/schedules/", telegram_id, expected_type=list)
 

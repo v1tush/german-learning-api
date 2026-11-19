@@ -1,3 +1,5 @@
+from telegram_bot.locales.datasets_en import TEXTS as DATASET_TEXTS
+
 TEXTS = {
     "welcome": "👋 <b>Welcome to Wozzi</b>\n\nCollect words in your vocabulary, group them into sets, and plan your reviews.\n\nCreate an account or link an existing one 👇",
     "main_menu": "👋 <b>Hi, {username}! Welcome to Wozzi</b>\n\nCollect words in your vocabulary, group them into sets, and plan your reviews.\n\nChoose a section below 👇",
@@ -129,7 +131,7 @@ TEXTS = {
     "settings_learning": "📚 Learning · {value}",
     "settings_avatar": "🖼 Photo · {value}",
     "menu_button": "Open menu",
-    "help": "ℹ️ <b>Using Wozzi</b>\n\nOpen My words to add words, choose translations, and manage their tags. Open Tags to create tags and add words to them. Sets, schedules, and your account are in the main menu.\n\n/menu — main menu\n/settings — account\n/cancel — leave the current action.",
+    "help": "ℹ️ <b>Using Wozzi</b>\n\nOpen My words to add words, choose translations, and manage their tags. Open Tags to create tags and add words to them. Open Sets to combine tagged words with individually added words. Schedules and your account are in the main menu.\n\n/menu — main menu\n/settings — account\n/cancel — leave the current action.",
     "command_start": "Open Wozzi",
     "command_menu": "Main screen",
     "command_settings": "Profile settings",
@@ -165,3 +167,4 @@ TEXTS = {
     "stale_action": "This button is outdated. Open the menu.",
     "already_selected": "Already selected.",
 }
+TEXTS.update(DATASET_TEXTS)
